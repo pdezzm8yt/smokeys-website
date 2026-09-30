@@ -7,9 +7,8 @@ import { OccasionsRail } from "@/components/home/occasions-rail";
 import { PackagesGrid } from "@/components/home/packages-grid";
 import { QuoteCta } from "@/components/home/quote-cta";
 import { IntroSequence } from "@/components/intro/intro-sequence";
-import { SceneBus, SceneCartoon, SceneReal } from "@/components/intro/scenes";
+import { DustLayer, SceneBus, SceneCartoon, SceneReal } from "@/components/intro/scenes";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { assets } from "@/content/assets";
 import { busFacts } from "@/content/bus";
 import { faqs } from "@/content/faq";
 import { gallery } from "@/content/gallery";
@@ -17,16 +16,9 @@ import { occasions } from "@/content/occasions";
 import { packages } from "@/content/packages";
 
 export default function HomePage() {
-  const busImage = assets.intro.bus.src;
   return (
     <>
-      <IntroSequence
-        real={<SceneReal />}
-        cartoon={<SceneCartoon />}
-        bus={<SceneBus />}
-        busAspect={busImage ? busImage.width / busImage.height : 1200 / 440}
-        exploreHref="#bus"
-      />
+      <IntroSequence real={<SceneReal />} cartoon={<SceneCartoon />} bus={<SceneBus />} dust={<DustLayer />} exploreHref="#bus" />
 
       <main id="main" tabIndex={-1} className="outline-none">
         <BusStats facts={busFacts} />

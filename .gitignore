@@ -13,3 +13,7 @@ next-env.d.ts
 
 # Machine-specific dev server config
 .claude/launch.json
+
+# Intro video masters stay local (big, and the repo is public); only the web versions in public/video/intro are committed.
+assets/intro-source/video/*
+!assets/intro-source/video/README.md

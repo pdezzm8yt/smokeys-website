@@ -38,7 +38,8 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-        <a href="#top" className="-m-2 rounded-lg p-2" aria-label={`${site.name} home`}>
+        {/* The homepage's hero is the end of the intro film (the bus, SMOKEY'S, the CTAs), not its first frame. */}
+        <a href="#intro-end" className="-m-2 rounded-lg p-2" aria-label={`${site.name} home`}>
           <Logo />
         </a>
 
