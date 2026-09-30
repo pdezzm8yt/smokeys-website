@@ -5,6 +5,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { site } from "@/content/site";
 import { bodyFont, displayFont } from "@/lib/fonts";
+import { siteIndexable } from "@/lib/indexing";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: `${site.name} Party Bus`, description: site.description },
   alternates: { canonical: "/" },
   formatDetection: { telephone: false },
+  robots: siteIndexable ? undefined : { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
