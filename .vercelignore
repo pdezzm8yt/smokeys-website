@@ -3,3 +3,6 @@
 .claude/
 .next/
 node_modules/
+# Secrets and local Vercel link state: never upload.
+.env*
+.vercel/
