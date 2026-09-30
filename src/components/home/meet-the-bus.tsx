@@ -2,17 +2,37 @@
 
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
+import Image from "next/image";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { BusInterior } from "@/components/art/bus-interior";
 import { PartyBus } from "@/components/art/party-bus";
 import { SampleTag } from "@/components/ui/sample-tag";
 import { cn } from "@/lib/cn";
 import { duration, enter, exit, spring } from "@/lib/motion";
+import { assets } from "@/content/assets";
 import { exteriorHotspots, interiorHotspots, type Hotspot } from "@/content/bus";
 
+// Each view's art box takes its image's exact aspect ratio (hotspots are % of
+// that box), then fits the panel: wide images by width, tall ones by height.
 const VIEWS = [
-  { id: "exterior", label: "Exterior", hotspots: exteriorHotspots },
-  { id: "interior", label: "Interior", hotspots: interiorHotspots },
+  {
+    id: "exterior",
+    label: "Exterior",
+    hotspots: exteriorHotspots,
+    media: assets.bus.exterior,
+    box: "w-full",
+    fallbackRatio: "1200 / 440",
+    fallback: <PartyBus idPrefix="meet-bus" className="absolute inset-0 size-full" />,
+  },
+  {
+    id: "interior",
+    label: "Interior",
+    hotspots: interiorHotspots,
+    media: assets.bus.interior,
+    box: "h-full",
+    fallbackRatio: "1200 / 640",
+    fallback: <BusInterior className="absolute inset-0 size-full" />,
+  },
 ] as const;
 
 type ViewId = (typeof VIEWS)[number]["id"];
@@ -97,11 +117,23 @@ export function MeetTheBus() {
                 exit={{ opacity: 0, scale: 0.98, transition: exit(duration.moderate) }}
               >
                 <div className="absolute inset-0 flex items-center justify-center p-[4%]">
-                  <div className={cn("relative w-full", view === "exterior" ? "aspect-[1200/440]" : "aspect-[1200/640]")}>
-                    {view === "exterior" ? (
-                      <PartyBus idPrefix="meet-bus" className="absolute inset-0 size-full" />
+                  <div
+                    className={cn("relative max-h-full max-w-full", current.box)}
+                    style={{
+                      aspectRatio: current.media.src ? `${current.media.src.width} / ${current.media.src.height}` : current.fallbackRatio,
+                    }}
+                  >
+                    {current.media.src ? (
+                      <Image
+                        src={current.media.src}
+                        alt={current.media.alt}
+                        fill
+                        sizes="(min-width: 1024px) 60vw, 92vw"
+                        quality={85}
+                        className={cn("object-contain", current.id === "interior" && "rounded-xl")}
+                      />
                     ) : (
-                      <BusInterior className="absolute inset-0 size-full" />
+                      current.fallback
                     )}
 
                     {current.hotspots.map((h) => {
@@ -138,7 +170,7 @@ export function MeetTheBus() {
               </m.div>
             </AnimatePresence>
           </div>
-          <SampleTag label="Illustration · real photos coming" className="absolute top-3 right-3" />
+          {current.media.placeholder && <SampleTag label="Illustration · real photos coming" className="absolute top-3 right-3" />}
         </div>
       </div>
 

@@ -17,15 +17,18 @@ export type Hotspot = {
   y: number;
 };
 
+// Positions are % of each photo (src/assets/intro/bus-exterior.webp, bus-interior.jpg).
+// Copy only describes what the photos show. TODO(owner): add specs (capacity, sound system).
 export const exteriorHotspots: Hotspot[] = [
-  { id: "paint", label: "Blackout exterior", body: "Gloss-black body and tinted glass. You see out; nobody sees in.", x: 34, y: 38 },
-  { id: "underglow", label: "Underglow", body: "Color-matched LED underglow so the bus arrives before you do.", x: 55, y: 92 },
-  { id: "entry", label: "Wide entry door", body: "Easy on-and-off for formalwear, heels and big groups.", x: 79, y: 58 },
+  { id: "paint", label: "Gloss-black exterior", body: "Blacked-out paint and dark-tinted glass, bumper to bumper.", x: 24, y: 72 },
+  { id: "glass", label: "Tinted windows", body: "Deep-tinted side windows keep the party inside private.", x: 22, y: 38 },
+  { id: "entry", label: "Double glass doors", body: "A wide double-door entry for easy on and off, even in formalwear.", x: 41.5, y: 58 },
 ];
 
 export const interiorHotspots: Hotspot[] = [
-  { id: "ceiling", label: "LED ceiling", body: "Programmable light show synced to the music.", x: 50, y: 14 },
-  { id: "seating", label: "Wraparound lounge seating", body: "Perimeter leather seating keeps the whole group facing each other.", x: 22, y: 70 },
-  { id: "sound", label: "Pro sound system", body: "Bluetooth or AUX: your playlist, club volume.", x: 82, y: 42 },
-  { id: "bar", label: "Refreshment bar", body: "Ice, cups and water stocked. Bring your own drinks where legal (21+).", x: 60, y: 62 },
+  { id: "ceiling", label: "LED ceiling strips", body: "Light strips run the full length of the cabin ceiling.", x: 30, y: 24 },
+  { id: "seating", label: "Diamond-stitched lounge seating", body: "Leather lounge seating lines both sides, so the whole group faces each other.", x: 14, y: 72 },
+  { id: "console", label: "Lit refreshment console", body: "Illuminated consoles with cup holders sit right between the seats.", x: 34, y: 63 },
+  { id: "sound", label: "Ceiling speakers", body: "Speakers are built into the ceiling panels along the cabin.", x: 80, y: 26 },
+  { id: "floor", label: "Floor lighting", body: "Color floor lighting runs the length of the aisle.", x: 36, y: 90 },
 ];

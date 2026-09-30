@@ -12,7 +12,11 @@
 | Hosting | Vercel with per-PR previews (previews noindex via `robots.ts`) |
 
 ## Intro
-One pinned stage, three stacked scene layers, fixed-length Motion timelines per transition (not scroll-scrubbed). Match cut: camera zooms on the bird's head (`data-zoom-target`), flash + speed lines hide the cut to the mascot. Mascot dashes off, smoke cloud wipes to black, headlights → bus → lights → copy. Reduced motion = crossfades. Lite mode (phones / coarse pointer / Save-Data) drops live blur.
+One pinned stage, three stacked scene layers, fixed-length Motion timelines per transition (not scroll-scrubbed), built from the owner's own images.
+1. Real roadrunner: Vision cutout, mirrored to run left → right, stride bob; behind it two subject-free, motion-blurred loop plates made from the same photo (panning-shot look, parallax).
+2. Click/tap: the bird accelerates, the camera whips, a speed flash hides the swap to the cartoon roadrunner on the same anchor, running through a 4-layer parallax cartoon desert.
+3. After a beat: dust explodes out of the anchor (sprite puffs driven by one animated CSS var), covers the frame, the scene swaps to the night desert under cover, dust clears on the black party bus standing where the roadrunner was; headlight flares on the real lamps, light pool, masked sheen, then headline + CTAs.
+Reduced motion = crossfades, no loops. Lite mode (phones / coarse pointer / Save-Data) drops live blur and half the dust puffs.
 
 ## Routes (planned)
 `/` (done) · `/about` · `/party-bus` · `/packages` · `/events` + `/events/[slug]` · `/gallery` · `/book` · `/contact` · `/faq` · `/privacy` · `/terms`

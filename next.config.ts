@@ -10,6 +10,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  images: {
+    formats: ["image/avif", "image/webp"],
+    // 85 is used for the intro cutouts, where compression artefacts would show on the edges.
+    qualities: [75, 85],
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
