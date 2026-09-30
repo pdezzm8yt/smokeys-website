@@ -122,95 +122,108 @@
   }
 }
 
-/* Returning visitors skip straight to the bus reveal without a flash of scene 1. */
-html[data-intro="seen"] [data-scene="real"],
-html[data-intro="seen"] [data-scene="cartoon"] {
+/*
+ * The intro: a tall section whose stage stays pinned (sticky) while the scroll
+ * plays the story. Its length is --intro-screens screen-heights of scrolling
+ * (set from src/components/intro/intro-config.ts), shorter for stills.
+ */
+.intro-scroll {
+  --screens-active: var(--intro-screens, 4.5);
+  /* The stage is 100lvh (see intro-sequence.tsx); the scroll distance is counted in small-viewport screens. */
+  height: calc(100lvh + 100svh * var(--screens-active));
+}
+/* The film's resting point: #intro-end scrolls to where the stage has just finished (progress ≈ 1). */
+.intro-end {
+  top: calc(100% - 100lvh);
+  scroll-margin-top: calc(-1 * (var(--header-h) + 1rem));
+}
+/* Controls along the bottom sit in the small viewport, never under a phone's toolbar. */
+.intro-bottom-ui {
+  bottom: calc(100lvh - 100svh + max(1.25rem, env(safe-area-inset-bottom)));
+}
+html[data-intro-still] .intro-scroll {
+  --screens-active: var(--intro-still-screens, 2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .intro-scroll {
+    --screens-active: var(--intro-still-screens, 2);
+  }
+}
+.intro-stage {
+  container-type: size;
+  --h1-size: clamp(2.25rem, min(1rem + 5vw, 9svh), 5.5rem);
+}
+
+/*
+ * One clip, framed for any screen (src/content/intro-video.ts sets --aspect,
+ * --fx/--fy = focus, --min-visible): covers the frame (the small viewport)
+ * like object-fit: cover, but never crops away more than 1 − min-visible of
+ * its width, nor more than 1 − min-visible-y of its height (so feet and wheels
+ * stay on screen from phones in landscape to 32:9 monitors). Past either limit
+ * it becomes a band: JS marks it data-banded="y" (letterboxed) or "x"
+ * (pillarboxed) and its edges feather into the scene's backdrop.
+ * Never stretched: its box always has the clip's own ratio.
+ */
+.intro-clip {
+  --frame-h: min(100cqh, 100svh);
+  --dw: min(
+    max(100cqw, var(--frame-h) * var(--aspect)),
+    100cqw / var(--min-visible),
+    var(--frame-h) * var(--aspect) / var(--min-visible-y, 0.7)
+  );
+  position: absolute;
+  width: var(--dw);
+  height: calc(var(--dw) / var(--aspect));
+  left: calc((100cqw - var(--dw)) * var(--fx));
+  top: calc((var(--frame-h) - var(--dw) / var(--aspect)) * var(--fy));
+}
+.intro-clip[data-banded="y"] {
+  mask-image: linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+}
+.intro-clip[data-banded="x"] {
+  mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
+}
+/* A video with no file yet (still mode, no JS, not loaded) must never cover its still frame. */
+.intro-clip video:not([src]) {
+  visibility: hidden;
+}
+
+/*
+ * The finished hero, without the scroll story: no JavaScript (see <noscript> in
+ * the layout), the engine failed to load, or Skip before it was ready.
+ */
+html[data-intro-final] [data-scene="real"],
+html[data-intro-final] [data-scene="cartoon"] {
   opacity: 0;
   visibility: hidden;
 }
-html[data-intro="seen"] [data-scene="bus"] {
+html[data-intro-final] [data-scene="bus"],
+html[data-intro-final] [data-bus-copy] {
   opacity: 1;
+  visibility: visible;
 }
-html[data-intro="seen"] [data-intro-hint] {
+html[data-intro-final] [data-bus-shade] {
+  opacity: 0;
+}
+html[data-intro-final] [data-intro-hint="scroll"],
+html[data-intro-final] [data-intro-hint="skip"] {
   display: none;
 }
-
-/*
- * Intro layout tunables. Every subject stands on one shared anchor
- * (horizontal position + distance above the stage bottom); widths are set
- * here and heights follow each image's aspect ratio, so nothing is stretched.
- * The width caps keep the low-resolution sources from being blown up.
- */
-.intro-stage {
-  --anchor-x: 50%;
-  --anchor-bottom: clamp(3rem, 13svh, 9rem);
-  --w-real: min(92vw, 900px, 150svh);
-  --w-cartoon: min(74vw, 480px, 60svh);
-  /*
-   * The bus fills the space left under the headline + CTAs. --copy-bottom is
-   * measured at runtime; before that, --copy-est mirrors the copy block's own
-   * geometry (header + padding + eyebrow + H1 clamp + CTA row) so the first
-   * paint already has the right size. The floor keeps it from vanishing on tiny screens.
-   */
-  --h1-size: clamp(2.25rem, min(1rem + 5vw, 9svh), 5.5rem);
-  --copy-est: calc(var(--header-h) + 9.5rem + var(--h1-size) * 0.95);
-  --w-bus: max(
-    min(94vw, 780px, calc((100svh - var(--copy-bottom, var(--copy-est)) - var(--anchor-bottom) - 1.25rem) * var(--bus-aspect, 1.89))),
-    min(55vw, 16rem)
-  );
-  --shift-real: 0px;
-}
-@media (min-width: 40rem) {
-  .intro-stage { --copy-est: calc(var(--header-h) + 11.25rem + var(--h1-size) * 0.95); }
-}
-@media (min-width: 40rem) and (min-height: 56rem) {
-  .intro-stage { --copy-est: calc(var(--header-h) + 17.5rem + var(--h1-size) * 0.95); }
-}
-/*
- * Portrait screens: subjects run bigger and a little higher. The bird's tail may
- * crop off the left edge, but its head always stays 2vw inside the right edge.
- * Caps still protect the low-resolution sources on tablets.
- */
-@media (max-aspect-ratio: 4/5) {
-  .intro-stage {
-    --anchor-bottom: clamp(6rem, 20svh, 12rem);
-    --w-real: min(150vw, 1000px);
-    --shift-real: calc(48vw - var(--w-real) / 2);
-    --w-cartoon: min(86vw, 520px);
-  }
-}
-/* Short landscape: copy on the left, subjects on the right. */
-@media (max-height: 30rem) and (orientation: landscape) {
-  .intro-stage {
-    --anchor-x: 70%;
-    --anchor-bottom: 2.25rem;
-    --w-real: min(58vw, 150svh);
-    --w-cartoon: min(40vw, 62svh);
-    --w-bus: min(52vw, calc((100svh - var(--header-h) - var(--anchor-bottom) - 1rem) * var(--bus-aspect, 1.89)));
-  }
-}
-.intro-anchor {
-  left: var(--anchor-x);
-  bottom: var(--anchor-bottom);
-  translate: calc(-50% + var(--shift, 0px)) 0;
+html[data-intro-failed] .intro-scroll {
+  height: 100lvh;
 }
 
-/* Intro loader: only when JS set data-intro-loading (first visit), never for no-JS visitors. */
+/* Intro loader: only when JS set data-intro-loading (first visit at the top), never for no-JS visitors. */
 html[data-intro-loading] [data-intro-loader] {
   display: flex;
 }
-html[data-intro-loading] [data-intro-hint="continue"] {
+html[data-intro-loading] [data-intro-hint="scroll"] {
   visibility: hidden;
 }
-/* Tapped before the cartoon/bus images finished decoding: the prompt says so until the shot starts. */
-html[data-intro-waiting] [data-intro-hint="continue"] {
-  cursor: progress;
-}
-html[data-intro-waiting] [data-intro-hint="continue"] > [data-label] {
+/* Until every clip is in memory the scroll hint shows download progress instead. */
+html[data-intro-pending] [data-intro-hint="scroll"] [data-label],
+html:not([data-intro-pending]) [data-intro-hint="scroll"] [data-pending] {
   display: none;
-}
-html[data-intro-waiting] [data-intro-hint="continue"] > [data-waiting] {
-  display: inline;
 }
 
 /* The site header stays out of the way until the bus is revealed. */
@@ -248,32 +261,9 @@ html:has(dialog[open]) {
   text-shadow: 0 0 24px color-mix(in oklch, var(--primary) 55%, transparent);
 }
 
-/*
- * Dust sprites are only fetched once the intro will actually play (never for
- * skip-straight-to-bus visitors). "idle" (set pre-paint by the boot script):
- * scene 1's running dust. "full" (once scene 1 is up): the dust-cloud sprites.
- */
-html:not([data-intro-armed]) [data-particle],
-html:not([data-intro-armed="full"]) .dust-puff {
+/* Feet-dust sprites are only fetched once the intro runs (never for no-JS visitors). */
+html:not([data-intro-armed]) [data-particle] {
   background-image: none !important;
-}
-
-/* One puff of the intro dust explosion. Position, spin and size all derive
-   from the parent's --p progress (tweened by the GSAP intro engine), so a
-   single animated value drives the whole cloud. Puffs start at size 0 and
-   reach their base size by p = 0.25: the cloud grows out of the running dust. */
-@utility dust-puff {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: var(--size);
-  aspect-ratio: 1;
-  background-position: center;
-  background-size: contain;
-  background-repeat: no-repeat;
-  transform: translate(-50%, -50%) translate(calc(var(--dx) * var(--p)), calc(var(--dy) * var(--p)))
-    rotate(calc(var(--rot) * var(--p))) scale(calc(var(--s0) * min(1, var(--p) * 4) + var(--grow) * var(--p)));
-  will-change: transform;
 }
 
 @utility bg-grain {

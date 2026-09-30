@@ -5,18 +5,20 @@
 | Decision | Choice |
 |---|---|
 | Framework | Next.js 16.3 App Router, static rendering; bump to 16.3.8 security release when published |
-| Styling / motion | Tailwind 4 tokens; GSAP 3 for the intro (loaded on demand); Motion 13 for interactive widgets |
+| Styling / motion | Tailwind 4 tokens; GSAP 3 + ScrollTrigger for the scroll-driven intro (loaded on demand); Motion 13 for interactive widgets |
 | Content | Typed TS files in `src/content` (CMS later if needed) |
 | Backend (phase 2) | Supabase Postgres `quote_requests` (RLS on, no public policies, server-only writes) + Resend |
 | Auth | None in v1 |
 | Hosting | Vercel with per-PR previews (previews noindex via `robots.ts`) |
 
 ## Intro
-One pinned stage, three stacked scene layers, one continuous GSAP master timeline with overlapping phases (not scroll-scrubbed), built from the owner's own images. A single "world speed" value drives every loop, so the whole world accelerates together.
-1. Real roadrunner: Vision cutout, mirrored to run left → right, stride bob; behind it two subject-free, motion-blurred loop plates made from the same photo (panning-shot look, parallax).
-2. Click/tap: the world surges and both birds lunge together while the real world dissolves into the cartoon one (the cartoon is fully visible before the real bird has gone), then the cartoon roadrunner runs through a 4-layer parallax cartoon desert, accelerating, with speed trails and dust kicked from his feet.
-3. While he is still running, the dust grows into a cloud (sprite puffs driven by one animated CSS var) that swallows him; under full cover the scene swaps to the night desert with the bus already in place; the dust clears on the black party bus standing where the roadrunner was, rolling slightly forward; headlight flares on the real lamps, light pool, masked sheen, then headline, then CTAs.
-Reduced motion = crossfades, no loops. Phones get fewer dust particles and puffs (CSS). No blur filters anywhere: motion smear comes from ghost-image trails.
+One scroll-driven scene: a pinned stage (CSS sticky inside a ~5.5-screen section) whose single GSAP master timeline is scrubbed by ScrollTrigger, reversible both ways. Video clips provide the movement; GSAP adds the camera, crossfades, dust/haze, speed and branding.
+1. Real roadrunner clip (looping) running from the start; scrolling pushes the camera in and speeds the world up (playback rate + speed lines + feet dust).
+2. The cartoon clip, already running, crossfades in over it, lined up (same spot, size, ground line) by measured camera transforms; the camera eases back to the cartoon's framing as it runs.
+3. Dust gathers at his feet, the dust clip (scrubbed frame by frame with the scroll) grows over him, a flat dust-coloured cover guarantees full cover at the swap; the bus layer takes over underneath.
+4. The dust thins, the bus clip (scrubbed with the scroll, like the dust) drives out of it, the camera settles; SMOKEY'S, then the CTAs; the stage unpins and the page continues.
+Clips: `src/content/intro-video.ts` → `npm run video:build` → `public/video/intro/` (H.264 MP4 ≤1920 wide, VP9 WebM, phone crop, still frame; HEVC-alpha for transparent clips). Everything is downloaded fully before the scroll unlocks. Temporary, clearly labelled placeholders are rendered from the owner's images until the real footage arrives (see `assets/intro-source/video/README.md`).
+Reduced motion / Save-Data = crossfaded stills on a shorter scroll (no clips downloaded). No JS = the finished hero.
 
 ## Routes (planned)
 `/` (done) · `/about` · `/party-bus` · `/packages` · `/events` + `/events/[slug]` · `/gallery` · `/book` · `/contact` · `/faq` · `/privacy` · `/terms`

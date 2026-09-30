@@ -1,0 +1,154 @@
+{
+  "real": {
+    "placeholder": true,
+    "source": ".cache/intro-video/placeholders/real-roadrunner.mp4",
+    "width": 1920,
+    "height": 1080,
+    "duration": 4.8,
+    "fps": 60,
+    "alpha": false,
+    "files": {
+      "mp4": "real-roadrunner.mp4",
+      "webm": "real-roadrunner.webm"
+    },
+    "mobile": {
+      "file": "real-roadrunner-mobile.mp4",
+      "width": 810,
+      "height": 736,
+      "crop": {
+        "x": 0.19010416666666666,
+        "y": 0,
+        "w": 0.6197916666666666,
+        "h": 1
+      }
+    },
+    "poster": {
+      "file": "real-roadrunner-poster.webp",
+      "at": 0
+    },
+    "backdrop": {
+      "top": "#202012",
+      "bottom": "#7b5339"
+    },
+    "kb": {
+      "real-roadrunner.mp4": 3280,
+      "real-roadrunner.webm": 1646,
+      "real-roadrunner-mobile.mp4": 851,
+      "real-roadrunner-poster.webp": 75
+    }
+  },
+  "cartoon": {
+    "placeholder": true,
+    "source": ".cache/intro-video/placeholders/cartoon-roadrunner.mp4",
+    "width": 1920,
+    "height": 1080,
+    "duration": 6,
+    "fps": 60,
+    "alpha": false,
+    "files": {
+      "mp4": "cartoon-roadrunner.mp4",
+      "webm": "cartoon-roadrunner.webm"
+    },
+    "mobile": {
+      "file": "cartoon-roadrunner-mobile.mp4",
+      "width": 768,
+      "height": 1080,
+      "crop": {
+        "x": 0.3,
+        "y": 0,
+        "w": 0.4,
+        "h": 1
+      }
+    },
+    "poster": {
+      "file": "cartoon-roadrunner-poster.webp",
+      "at": 1.5
+    },
+    "backdrop": {
+      "top": "#66b9ea",
+      "bottom": "#ffcc7f"
+    },
+    "kb": {
+      "cartoon-roadrunner.mp4": 1138,
+      "cartoon-roadrunner.webm": 815,
+      "cartoon-roadrunner-mobile.mp4": 649,
+      "cartoon-roadrunner-poster.webp": 52
+    }
+  },
+  "dust": {
+    "placeholder": true,
+    "source": ".cache/intro-video/placeholders/dust-transition.mp4",
+    "width": 1280,
+    "height": 720,
+    "duration": 4,
+    "fps": 30,
+    "alpha": false,
+    "files": {
+      "mp4": "dust-transition.mp4",
+      "webm": "dust-transition.webm"
+    },
+    "mobile": {
+      "file": "dust-transition-mobile.mp4",
+      "width": 404,
+      "height": 720,
+      "crop": {
+        "x": 0.3421875,
+        "y": 0,
+        "w": 0.315625,
+        "h": 1
+      }
+    },
+    "poster": {
+      "file": "dust-transition-poster.webp",
+      "at": 1.3
+    },
+    "backdrop": {
+      "top": "#9b876a",
+      "bottom": "#7e6f57"
+    },
+    "kb": {
+      "dust-transition.mp4": 1133,
+      "dust-transition.webm": 707,
+      "dust-transition-mobile.mp4": 374,
+      "dust-transition-poster.webp": 26
+    }
+  },
+  "bus": {
+    "placeholder": true,
+    "source": ".cache/intro-video/placeholders/party-bus.mp4",
+    "width": 1920,
+    "height": 1080,
+    "duration": 5,
+    "fps": 30,
+    "alpha": false,
+    "files": {
+      "mp4": "party-bus.mp4",
+      "webm": "party-bus.webm"
+    },
+    "mobile": {
+      "file": "party-bus-mobile.mp4",
+      "width": 810,
+      "height": 474,
+      "crop": {
+        "x": 0.0203125,
+        "y": 0,
+        "w": 0.959375,
+        "h": 1
+      }
+    },
+    "poster": {
+      "file": "party-bus-poster.webp",
+      "at": 5
+    },
+    "backdrop": {
+      "top": "#0a0513",
+      "bottom": "#160e15"
+    },
+    "kb": {
+      "party-bus.mp4": 2755,
+      "party-bus.webm": 2887,
+      "party-bus-mobile.mp4": 818,
+      "party-bus-poster.webp": 74
+    }
+  }
+}

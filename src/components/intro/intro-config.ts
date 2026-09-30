@@ -1,60 +1,77 @@
 /**
  * Timing and speed tunables for the intro. Change a number here, not in the
- * timeline code. (Layout tunables live in globals.css under `.intro-stage`.)
+ * timeline code. Clip files, framing and where each subject stands live in
+ * src/content/intro-video.ts; layout rules in globals.css (.intro-clip).
  *
- * The master timeline is one continuous shot. Positions below are seconds after
- * the tap; phases deliberately OVERLAP (the cartoon fades in while the real
- * bird is still visible, dust forms while the cartoon is still running, the bus
- * is in place before the dust clears).
+ * The intro is ONE timeline scrubbed by scroll. Its positions are timeline
+ * units, not seconds: the whole timeline is spread over `scroll.screens`
+ * screen-heights of scrolling (so 1 unit ≈ screens / total units of a screen).
+ * Beats deliberately OVERLAP: the cartoon fades in while the real bird is
+ * still visible, the dust clip starts while he's still running, the bus is in
+ * place behind the dust before it clears.
  */
 export const INTRO = {
-  /** Ignore wheel/keys this long after the reveal lands (trackpad inertia). */
-  cooldownMs: 700,
-  /** Keep the page locked briefly after the reveal so momentum can't fling it. */
-  unlockDelayMs: 450,
-  /** Never hold the visitor on the loader longer than this, even if an image stalls. */
-  preloadTimeoutMs: 8000,
+  /** Scene 1 (the real clip) must be ready within this, or it starts as a still. */
+  firstClipTimeoutMs: 10_000,
+  /** The other clips must be ready within this, or they play as stills (scrolling unlocks anyway). */
+  restClipsTimeoutMs: 30_000,
+
+  scroll: {
+    /** How much scrolling the intro takes, in screen heights (the stage stays pinned meanwhile). */
+    screens: 4.5,
+    /** Reduced motion / Save-Data: a shorter run of calm crossfades. */
+    stillScreens: 2,
+    /** Seconds the timeline takes to catch up with the scrollbar: smooths wheel steps and touch flicks. */
+    scrub: 0.8,
+  },
 
   timeline: {
-    /** Real roadrunner kicks into top speed (the tap's immediate response). */
-    accelerate: 0.7,
-    /** Real → cartoon: overlapping crossfade of both birds in the same pose. */
-    morphAt: 0.35,
-    morph: 0.6,
-    /** Cartoon running through the desert before the storm. */
-    run: 2.0,
-    /** Dust starts forming behind him this long into the run. */
-    dustFormsAt: 0.95,
-    /** Dust cloud builds to full cover. */
-    dustBuild: 0.85,
+    /** Camera push into the real bird while the cartoon fades in over it. */
+    push: 1.08,
+    /** Real → cartoon: an overlapping crossfade, both birds lined up and running. */
+    morph: 0.8,
+    morphLength: 1.1,
+    /** The cartoon's desert run, until the storm. */
+    run: 1.9,
+    /** Small dust starts gathering at his feet this far into the run. */
+    feetDustAt: 0.7,
+    /** The dust clip starts this long before the storm (he's still running). */
+    dustLead: 0.5,
+    /** The storm builds to full cover (the swap happens at its end). */
+    dustBuild: 0.9,
     /** Frame fully covered while the roadrunner becomes the bus. */
     hold: 0.3,
-    /** Dust clears and the bus rolls out of it. */
+    /** Dust clears; the camera settles on the bus. */
     clear: 1.4,
-    /** Branding waits for the reveal to land; CTAs come after branding. */
+    /** The bus clip starts this long before the dust thins: already driving when revealed. */
+    busLead: 0.2,
+    /** Branding waits for the camera to settle; CTAs come after branding. */
     brandAfterClear: 1.45,
-    ctaAfterBrand: 0.6,
+    ctaAfterBrand: 0.5,
+    ctaLength: 0.6,
+    /** A last beat to take it in before the stage unpins and the page scrolls on. */
+    dwell: 0.35,
   },
 
   /**
-   * World speed: one number that drives every loop (parallax layers, stride
-   * bob, speed lines, dust emission). Loops play at `speed × their own rate`,
-   * so ramping this ramps the whole world smoothly. It only ever rises:
-   * idle → kick (the tap's instant surge) → run (steady climb) → storm.
+   * World speed: one number that drives everything that shows speed (the
+   * running clips' playback rate, speed lines, feet dust, parallax layers).
+   * It rises with scroll progress: idle → kick → run → storm.
    */
   speed: {
     idle: 1,
-    kick: 2.2,
+    kick: 1.9,
     run: 2.5,
     storm: 3.4,
-    /** The stride and whoosh cap here so each footfall stays readable (≥ 6 frames) at storm speed. */
-    strideMax: 1.8,
+    /** Extra speed while you scroll fast (it eases back when you stop). */
+    scrollBoost: 1.2,
   },
 
-  /** Seconds per loop of each parallax layer at world speed 1 (lower = faster). */
+  /** How world speed maps onto the running clips' playback rate: 1 + (speed − 1) × gain, capped. */
+  video: { speedGain: 0.25, maxRate: 1.75 },
+
+  /** Seconds per loop of each cartoon-desert layer at world speed 1 (only behind a transparent cartoon clip). */
   loops: {
-    realPlate: 2.4,
-    realGround: 1.1,
     desertClouds: 65,
     desertFar: 26,
     desertMid: 7,

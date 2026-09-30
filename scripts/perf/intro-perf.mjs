@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 /**
- * Intro smoothness + continuity check in headless Chromium.
+ * Scroll-driven intro: smoothness + continuity check in headless Chromium.
  *
- *   npm run perf:intro -- [baseUrl] [--frames]
+ *   npm run perf:intro -- [baseUrl] [--frames] [--gpu] [--device=phone] [--throttle=1,4]
  *
- * Needs a running server (production build recommended: `npm run build && npm start`)
+ * Needs a running production server (`npm run build && npx next start -p 3100`)
  * and Playwright's Chromium (`npx playwright-core install --only-shell chromium`).
+ * Playwright's Chromium has no H.264, so it exercises the WebM versions; the
+ * MP4 versions are what Safari and branded Chrome pick.
  *
- * For each device (desktop 1280x800, phone 390x844 touch) and CPU throttle (1x, 4x, 6x):
- *   - waits for the branded loader to finish (all intro assets decoded),
- *   - taps/clicks to start, records every animation frame until the CTAs land,
- *   - reports FPS, dropped frames (>1.5x the 16.7 ms budget), worst frame, long tasks,
- *     and how long the whole shot took (GSAP is time-based, so it should stay on schedule).
- * With --frames it also saves a filmstrip of screenshots through the shot (unthrottled only).
+ * For each device (desktop 1280x800, phone 390x844 touch) and CPU throttle:
+ *   - waits until every clip is in memory (the scroll hint stops showing progress),
+ *   - scrolls the whole intro DOWN at a steady speed, then back UP, recording
+ *     every animation frame, and reports FPS, slow frames (>25 ms), worst frame
+ *     and long tasks per stretch of the story (by scroll progress).
+ * With --frames it also saves a filmstrip at fixed scroll positions (down, then
+ * back up), once the scrubbed timeline has caught up, plus image fidelity.
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -21,7 +24,6 @@ import { chromium } from "playwright-core";
 const args = process.argv.slice(2);
 const baseUrl = args.find((a) => a.startsWith("http")) ?? "http://localhost:3100/";
 const wantFrames = args.includes("--frames");
-const injectCss = args.find((a) => a.startsWith("--css="))?.slice(6);
 const outDir = path.resolve(".cache/perf");
 mkdirSync(outDir, { recursive: true });
 
@@ -31,18 +33,20 @@ const DEVICES = {
 };
 const onlyDevice = args.find((a) => a.startsWith("--device="))?.split("=")[1];
 const THROTTLES = (args.find((a) => a.startsWith("--throttle="))?.split("=")[1] ?? "1,4,6").split(",").map(Number);
-const FILMSTRIP_AT = [0.15, 0.4, 0.6, 0.85, 1.4, 2.2, 2.9, 3.3, 3.6, 3.9, 4.3, 4.8, 5.6, 6.3, 7.2];
+/** Scroll progress through the intro (0 = top, 1 = the stage unpins). */
+const FILMSTRIP_AT = [0, 0.07, 0.13, 0.19, 0.26, 0.35, 0.44, 0.52, 0.58, 0.61, 0.66, 0.72, 0.8, 0.86, 0.93, 1];
+const FILMSTRIP_BACK = [0.6, 0.45, 0.16, 0.02];
+const STRETCHES = [
+  ["real + camera", 0, 0.1],
+  ["real → cartoon", 0.1, 0.3],
+  ["cartoon run", 0.3, 0.42],
+  ["dust build + swap", 0.42, 0.63],
+  ["clear + bus", 0.63, 0.81],
+  ["branding + CTAs", 0.81, 1.01],
+];
 
 async function openIntro(browser, device, throttle) {
-  const dpr = Number(args.find((a) => a.startsWith("--dpr="))?.split("=")[1]) || undefined;
-  const vp = args.find((a) => a.startsWith("--viewport="))?.split("=")[1]?.split("x").map(Number);
-  const mobileFlag = args.find((a) => a.startsWith("--mobile="))?.split("=")[1];
-  const context = await browser.newContext({
-    ...DEVICES[device],
-    ...(dpr ? { deviceScaleFactor: dpr } : {}),
-    ...(vp ? { viewport: { width: vp[0], height: vp[1] } } : {}),
-    ...(mobileFlag ? { isMobile: mobileFlag === "1", hasTouch: mobileFlag === "1" } : {}),
-  });
+  const context = await browser.newContext(DEVICES[device]);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -51,114 +55,132 @@ async function openIntro(browser, device, throttle) {
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: throttle });
   const t0 = Date.now();
   await page.goto(baseUrl, { waitUntil: "load" });
-  if (injectCss) await page.addStyleTag({ content: injectCss }); // A/B experiments: --css="selector{...}"
-  // Ready = loader gone (every intro asset decoded) and the prompt visible.
-  await page.waitForFunction(() => !document.documentElement.hasAttribute("data-intro-loading"), null, { timeout: 30000 });
+  // Ready = loader gone and every clip in memory (scroll unlocked).
+  await page.waitForFunction(() => !document.documentElement.hasAttribute("data-intro-loading"), null, { timeout: 60000 });
   const loaderMs = Date.now() - t0;
-  const renderer = await page.evaluate(() => {
-    const gl = document.createElement("canvas").getContext("webgl");
-    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
-    return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "unknown";
-  });
-  console.error(`[${device} ${throttle}x] renderer: ${renderer}`);
-  await page.waitForTimeout(600); // let the idle loops settle
-  return { context, page, errors, loaderMs };
+  await page.waitForFunction(() => !document.documentElement.hasAttribute("data-intro-pending"), null, { timeout: 60000 });
+  const readyMs = Date.now() - t0;
+  const clips = await page.evaluate(() =>
+    [...document.querySelectorAll("[data-clip]")].map((v) => `${v.dataset.clip}:${v.readyState >= 2 ? "ready" : "NOT READY"}`),
+  );
+  await page.waitForTimeout(400);
+  return { context, page, errors, loaderMs, readyMs, clips };
 }
 
-async function tap(page, device) {
-  const box = await page.locator("#top").boundingBox();
-  const x = box.x + box.width / 2;
-  const y = box.y + box.height * 0.35;
-  if (device === "phone") await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
+/** Scroll to a progress through the intro and wait for the scrubbed timeline to catch up. */
+async function scrollTo(page, p) {
+  await page.evaluate((p) => {
+    const s = document.querySelector("#top");
+    window.scrollTo(0, p * (s.offsetHeight - innerHeight));
+  }, p);
+  await page.waitForTimeout(1300);
+}
+
+/** Scroll steadily from one progress to another over `ms`, recording every frame. */
+function sweep(page, from, to, ms) {
+  return page.evaluate(
+    ([from, to, ms]) =>
+      new Promise((resolve) => {
+        const s = document.querySelector("#top");
+        const range = s.offsetHeight - innerHeight;
+        const frames = [];
+        const longTasks = [];
+        const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => longTasks.push(Math.round(e.duration))));
+        po.observe({ type: "longtask", buffered: false });
+        const t0 = performance.now();
+        const step = (t) => {
+          const k = Math.min(1, (t - t0) / ms);
+          const p = from + (to - from) * k;
+          window.scrollTo(0, p * range);
+          frames.push([t, p]);
+          if (k < 1) requestAnimationFrame(step);
+          else setTimeout(() => (po.disconnect(), resolve({ frames, longTasks })), 50);
+        };
+        requestAnimationFrame(step);
+      }),
+    [from, to, ms],
+  );
+}
+
+function summarize({ frames, longTasks }) {
+  const deltas = frames.slice(1).map(([t, p], i) => [t - frames[i][0], p]);
+  const avg = deltas.reduce((a, [d]) => a + d, 0) / Math.max(1, deltas.length);
+  const sorted = deltas.map(([d]) => d).sort((a, b) => a - b);
+  return {
+    fps: +(1000 / avg).toFixed(1),
+    slowPct: +((100 * deltas.filter(([d]) => d > 25).length) / Math.max(1, deltas.length)).toFixed(1),
+    worstMs: Math.round(Math.max(...deltas.map(([d]) => d))),
+    p95Ms: Math.round(sorted[Math.floor(sorted.length * 0.95)] ?? 0),
+    longTasks,
+    stretches: Object.fromEntries(
+      STRETCHES.map(([name, a, b]) => {
+        const ds = deltas.filter(([, p]) => p >= a && p < b).map(([d]) => d);
+        return [name, `${Math.round((100 * ds.filter((d) => d > 25).length) / Math.max(1, ds.length))}% slow, worst ${Math.round(Math.max(0, ...ds))}ms`];
+      }),
+    ),
+  };
 }
 
 async function measure(browser, device, throttle) {
-  const { context, page, errors, loaderMs } = await openIntro(browser, device, throttle);
-  await page.evaluate(() => {
-    window.__perf = { frames: [], longTasks: [], start: 0, end: 0 };
-    new PerformanceObserver((list) => {
-      // [ms after the tap, duration]: where in the shot each long task landed.
-      for (const e of list.getEntries()) window.__perf.longTasks.push([Math.round(e.startTime - window.__perf.start), Math.round(e.duration)]);
-    }).observe({ type: "longtask", buffered: false });
-    const loop = (t) => {
-      window.__perf.frames.push(t);
-      if (!window.__perf.end) requestAnimationFrame(loop);
-    };
-    requestAnimationFrame(loop);
-    // "Landed" = the CTAs are fully shown (last beat of the master timeline).
-    const ctas = document.querySelector("[data-bus-ctas]");
-    const watch = () => {
-      if (window.__perf.start && ctas && getComputedStyle(ctas).opacity === "1" && document.querySelector("#top")?.dataset.stage === "bus") {
-        window.__perf.end = performance.now();
-      } else requestAnimationFrame(watch);
-    };
-    requestAnimationFrame(watch);
-  });
-  await page.evaluate(() => (window.__perf.start = performance.now()));
-  await tap(page, device);
-  await page.waitForFunction(() => window.__perf.end > 0, null, { timeout: 60000 });
-  const r = await page.evaluate(() => {
-    const { frames, start, end, longTasks } = window.__perf;
-    const inShot = frames.filter((t) => t >= start && t <= end);
-    const deltas = inShot.slice(1).map((t, i) => t - inShot[i]);
-    const avg = deltas.reduce((a, b) => a + b, 0) / Math.max(1, deltas.length);
-    return {
-      shotSeconds: +((end - start) / 1000).toFixed(2),
-      frames: deltas.length,
-      fps: +(1000 / avg).toFixed(1),
-      droppedPct: +((100 * deltas.filter((d) => d > 25).length) / Math.max(1, deltas.length)).toFixed(1),
-      worstFrameMs: Math.round(Math.max(...deltas)),
-      p95FrameMs: Math.round([...deltas].sort((a, b) => a - b)[Math.floor(deltas.length * 0.95)] ?? 0),
-      longTasks,
-      // Where the slow frames are: % of frames over budget per phase of the shot.
-      phases: Object.fromEntries(
-        [["0-1s morph", 0, 1], ["1-3s run", 1, 3], ["3-4.2s storm", 3, 4.2], ["4.2-5.6s reveal", 4.2, 5.6], ["5.6s+ brand", 5.6, 99]].map(([name, a, b]) => {
-          const ds = inShot.slice(1).map((t, i) => [(t - start) / 1000, t - inShot[i]]).filter(([s]) => s >= a && s < b).map(([, d]) => d);
-          return [name, `${Math.round((100 * ds.filter((d) => d > 25).length) / Math.max(1, ds.length))}% slow, worst ${Math.round(Math.max(0, ...ds))}ms`];
-        }),
-      ),
-      docWidth: document.documentElement.scrollWidth,
-      viewport: innerWidth,
-    };
-  });
+  const { context, page, errors, loaderMs, readyMs, clips } = await openIntro(browser, device, throttle);
+  const down = summarize(await sweep(page, 0, 1, 9000));
+  await page.waitForTimeout(1200);
+  const up = summarize(await sweep(page, 1, 0, 9000));
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
   await context.close();
-  return { device, throttle: `${throttle}x`, loaderMs, ...r, errors: errors.length ? errors : undefined };
+  return { device, throttle: `${throttle}x`, loaderMs, readyMs, clips, down, up, horizontalOverflowPx: overflow, errors: errors.length ? errors : undefined };
 }
 
 async function filmstrip(browser, device) {
-  const { context, page, errors } = await openIntro(browser, device, 1);
+  const { context, page, errors, clips } = await openIntro(browser, device, 1);
   const dir = path.join(outDir, `filmstrip-${device}`);
-  rmSync(dir, { recursive: true, force: true }); // frames are named by their actual time: never mix runs
+  rmSync(dir, { recursive: true, force: true }); // frames are named by position: never mix runs
   mkdirSync(dir, { recursive: true });
-  await page.screenshot({ path: path.join(dir, "00-idle.jpg"), type: "jpeg", quality: 70 });
-  const t0 = Date.now();
-  await tap(page, device);
-  for (const [i, at] of FILMSTRIP_AT.entries()) {
-    const wait = at * 1000 - (Date.now() - t0);
-    if (wait > 0) await page.waitForTimeout(wait);
-    const actual = ((Date.now() - t0) / 1000).toFixed(2);
-    await page.screenshot({ path: path.join(dir, `${String(i + 1).padStart(2, "0")}-${actual}s.jpg`), type: "jpeg", quality: 70 });
+  const states = [];
+  const snap = async (label) => {
+    const st = await page.evaluate(() => {
+      const op = (s) => +(+getComputedStyle(document.querySelector(s)).opacity).toFixed(2);
+      const v = (s) => document.querySelector(`[data-clip="${s}"]`);
+      return {
+        real: op('[data-scene="real"]'),
+        cartoon: op('[data-scene="cartoon"]'),
+        bus: op('[data-scene="bus"]'),
+        haze: op('[data-fx="haze"]'),
+        dust: op("[data-dust]"),
+        playing: ["real", "cartoon", "dust", "bus"].filter((s) => v(s) && !v(s).paused),
+        dustT: +(v("dust")?.currentTime ?? 0).toFixed(2),
+        busT: +(v("bus")?.currentTime ?? 0).toFixed(2),
+        header: document.documentElement.dataset.introStage,
+        ctasInert: document.querySelector("[data-bus-ctas]")?.inert,
+      };
+    });
+    states.push({ at: label, ...st });
+    await page.screenshot({ path: path.join(dir, `${String(states.length).padStart(2, "0")}-${label}.jpg`), type: "jpeg", quality: 70 });
+  };
+  for (const p of FILMSTRIP_AT) {
+    await scrollTo(page, p);
+    await snap(`down-${p.toFixed(2)}`);
   }
-  // Image fidelity: rendered vs natural aspect ratio of every intro subject.
+  for (const p of FILMSTRIP_BACK) {
+    await scrollTo(page, p);
+    await snap(`up-${p.toFixed(2)}`);
+  }
+  // Fidelity: every framed clip keeps its own aspect ratio (never stretched).
   const fidelity = await page.evaluate(() =>
-    [...document.querySelectorAll("#top [data-subject] img:not([data-trail])")].map((img) => {
-      // Layout box (offsetWidth/Height) is unaffected by the timeline's rotate/scale.
-      return { subject: img.closest("[data-subject]").dataset.subject, rendered: +(img.offsetWidth / img.offsetHeight).toFixed(3), natural: +(img.naturalWidth / img.naturalHeight).toFixed(3) };
+    [...document.querySelectorAll("[data-clip-box]")].map((box) => {
+      const v = box.querySelector("video");
+      return { clip: box.dataset.clipBox, box: +(box.offsetWidth / box.offsetHeight).toFixed(3), video: v?.videoWidth ? +(v.videoWidth / v.videoHeight).toFixed(3) : null };
     }),
   );
   await context.close();
-  return { device, dir, fidelity, errors };
+  return { device, dir, clips, fidelity, states, errors };
 }
 
-// --gpu: use the machine's GPU (Metal/ANGLE) like a real desktop browser; default is CPU-only SwiftShader.
 const useGpu = args.includes("--gpu");
-const browser = await chromium.launch(
-  useGpu ? { args: ["--use-angle=metal", "--enable-gpu-rasterization", "--ignore-gpu-blocklist", "--enable-zero-copy"] } : {},
-);
+const browser = await chromium.launch(useGpu ? { args: ["--use-angle=metal", "--enable-gpu-rasterization", "--ignore-gpu-blocklist", "--enable-zero-copy"] } : {});
 const results = [];
 try {
-  if (wantFrames) for (const d of Object.keys(DEVICES)) results.push(await filmstrip(browser, d));
+  if (wantFrames) for (const d of Object.keys(DEVICES)) if (!onlyDevice || d === onlyDevice) results.push(await filmstrip(browser, d));
   for (const d of Object.keys(DEVICES)) {
     if (onlyDevice && d !== onlyDevice) continue;
     for (const t of THROTTLES) results.push(await measure(browser, d, t));
