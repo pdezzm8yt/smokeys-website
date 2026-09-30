@@ -8,9 +8,10 @@
  * and Playwright's Chromium (`npx playwright-core install --only-shell chromium`).
  * Prints one JSON report: first visit (loader, scroll held until the footage
  * is in memory, scroll down and back up), unpinning, reduced motion, Skip
- * (also while loading), deep links, reload mid-intro, no JavaScript, keyboard,
- * phone, rotation/resize, fast scrolling, autoplay blocked, 32:9, home link.
- * Read it for anything unexpected: there are no hard asserts.
+ * (also while loading, and before the page's JavaScript has run), deep links,
+ * reload mid-intro, no JavaScript, keyboard, phone, rotation/resize, fast
+ * scrolling, autoplay blocked, 32:9, home link. Exits with 1 if any page
+ * throws an uncaught error; read the rest of the report for anything unexpected.
  */
 import { chromium } from "playwright-core";
 const URL = process.argv.slice(2).find((a) => a.startsWith("http")) ?? "http://localhost:3100/";
@@ -18,6 +19,13 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isM
 const desktop = { viewport: { width: 1280, height: 800 } };
 const browser = await chromium.launch({ args: ["--use-angle=metal", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] });
 const results = {};
+/** Uncaught page errors from every flow: any one fails the run. */
+const uncaught = [];
+async function context(opts) {
+  const ctx = await browser.newContext(opts);
+  ctx.on("page", (p) => p.on("pageerror", (e) => uncaught.push(e.message)));
+  return ctx;
+}
 const state = (page) =>
   page.evaluate(() => {
     const h = document.documentElement;
@@ -40,7 +48,7 @@ const state = (page) =>
   });
 const to = (page, p) => page.evaluate((p) => { const s = document.querySelector("#top"); window.scrollTo(0, p * (s.offsetHeight - innerHeight)); }, p);
 async function open(ctxOpts = {}, gotoOpts = {}) {
-  const ctx = await browser.newContext({ ...desktop, ...ctxOpts });
+  const ctx = await context({ ...desktop, ...ctxOpts });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -130,6 +138,19 @@ const ready = (page) => page.waitForFunction(() => !document.documentElement.has
   await to(page, 1); await page.waitForTimeout(1300); const end = await state(page);
   results["10 phone"] = { files, swap: { bus: swap.bus, cartoon: swap.cartoon, playing: swap.playing }, end: { h1: end.h1, ctas: end.ctas, overflowX: end.overflowX }, errors }; await ctx.close(); }
 
+// 11. Skip before any of the page's JavaScript has run (scripts held back): the boot script alone
+// shows the finished hero at the end of the intro; then the engine takes over.
+{ const ctx = await context(desktop);
+  let release; const held = new Promise((r) => (release = r));
+  await ctx.route((u) => u.pathname.startsWith("/_next/static/chunks/") && u.pathname.endsWith(".js"), async (route) => { await held; await route.continue(); });
+  const page = await ctx.newPage(); const errors = []; page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto(URL, { waitUntil: "domcontentloaded" });
+  const before = await state(page);
+  await page.getByRole("button", { name: "Skip intro" }).click(); await page.waitForTimeout(400);
+  const afterSkip = await state(page);
+  release(); await page.waitForLoadState("load"); await page.waitForTimeout(3000);
+  results["11 skip before JavaScript"] = { before: { loading: before.loading, lock: before.lock }, afterSkip, afterJs: await state(page), errors }; await ctx.close(); }
+
 
 const st = (page) => page.evaluate(() => {
   const v = (s) => document.querySelector(`[data-clip="${s}"]`);
@@ -138,7 +159,7 @@ const st = (page) => page.evaluate(() => {
 });
 
 // A. Rotate / resize after scrolling past the intro: header stays, nothing replays.
-{ const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
+{ const ctx = await context({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
   const page = await ctx.newPage(); await page.goto(URL, { waitUntil: "load" }); await ready(page);
   await page.evaluate(() => { const s = document.querySelector("#top"); window.scrollTo(0, s.offsetHeight + 400); }); await page.waitForTimeout(1500);
   const before = await st(page);
@@ -148,14 +169,14 @@ const st = (page) => page.evaluate(() => {
   results["A rotate below intro"] = { before, afterRotate, afterScroll: await st(page) }; await ctx.close(); }
 
 // B. Desktop resize while parked at the branding: bus stays at rest.
-{ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+{ const ctx = await context({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage(); await page.goto(URL, { waitUntil: "load" }); await ready(page);
   await to(page, 0.9); await page.waitForTimeout(1500); const before = await st(page);
   await page.setViewportSize({ width: 1180, height: 760 }); await page.waitForTimeout(1500);
   results["B resize at branding"] = { before, after: await st(page) }; await ctx.close(); }
 
 // C. Fast wheel scroll to the end: the bus is scrubbed (monotonic, no snap).
-{ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+{ const ctx = await context({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage(); await page.goto(URL, { waitUntil: "load" }); await ready(page);
   await page.mouse.move(640, 400);
   await page.evaluate(() => { window.__bus = []; const v = document.querySelector('[data-clip="bus"]'); const f = () => { window.__bus.push(+v.currentTime.toFixed(2)); if (window.__bus.length < 400) requestAnimationFrame(f); }; requestAnimationFrame(f); });
@@ -167,7 +188,7 @@ const st = (page) => page.evaluate(() => {
   results["C fast scroll"] = { final: await st(page), backwardsSteps: drops, biggestForwardStepSec: +maxJump.toFixed(2) }; await ctx.close(); }
 
 // D. Autoplay blocked (NotAllowedError): stills for the running clips, bus/dust still scrub; a tap unlocks.
-{ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+{ const ctx = await context({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage();
   await page.addInitScript(() => {
     const orig = HTMLMediaElement.prototype.play;
@@ -184,13 +205,13 @@ const st = (page) => page.evaluate(() => {
   results["D autoplay blocked"] = { idle, dusty, end, afterTap: await st(page) }; await ctx.close(); }
 
 // E. 32:9 ultrawide: clips stay within the vertical limit (feet/wheels on screen).
-{ const ctx = await browser.newContext({ viewport: { width: 3840, height: 1080 } });
+{ const ctx = await context({ viewport: { width: 3840, height: 1080 } });
   const page = await ctx.newPage(); await page.goto(URL, { waitUntil: "load" }); await ready(page);
   const boxes = await page.evaluate(() => [...document.querySelectorAll("[data-clip-box]")].map((b) => ({ clip: b.dataset.clipBox, w: b.offsetWidth, h: b.offsetHeight, top: b.offsetTop, banded: b.dataset.banded ?? "-" })));
       results["E 32:9"] = { boxes }; await ctx.close(); }
 
 // F. Header home link → the film's resting point.
-{ const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+{ const ctx = await context({ viewport: { width: 1280, height: 800 } });
   const page = await ctx.newPage(); await page.goto(`${URL}#faq`, { waitUntil: "load" }); await page.waitForTimeout(2500);
   await page.evaluate(() => document.documentElement.style.scrollBehavior = "auto");
   await page.click('[data-site-header] a[aria-label$="home"]'); await page.waitForTimeout(2000);
@@ -199,3 +220,7 @@ const st = (page) => page.evaluate(() => {
 
 await browser.close();
 console.log(JSON.stringify(results, null, 1));
+if (uncaught.length) {
+  console.error(`\n${uncaught.length} uncaught page error(s):\n${[...new Set(uncaught)].join("\n")}`);
+  process.exitCode = 1;
+}
