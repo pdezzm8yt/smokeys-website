@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/*
+ * Smokey's design tokens.
+ * Brand colors are PROVISIONAL until the real brand palette arrives —
+ * swap the values in :root and every component follows.
+ */
+:root {
+  color-scheme: dark;
+
+  --background: oklch(0.13 0.006 285);
+  --foreground: oklch(0.97 0.004 285);
+  --surface: oklch(0.17 0.008 285);
+  --surface-raised: oklch(0.215 0.01 285);
+  --muted: oklch(0.24 0.01 285);
+  --muted-foreground: oklch(0.74 0.012 285);
+  --border: oklch(0.29 0.012 285);
+  --input: oklch(0.5 0.012 285);
+
+  /* Headlight amber: the primary action color */
+  --primary: oklch(0.8 0.155 70);
+  --primary-foreground: oklch(0.16 0.02 60);
+  /* Party-light neons: accents only, never body text on dark surfaces below 4.5:1 */
+  --neon-pink: oklch(0.7 0.24 350);
+  --neon-violet: oklch(0.66 0.22 295);
+  --neon-cyan: oklch(0.84 0.13 205);
+  /* Desert tones used by the intro */
+  --dusk-sky: oklch(0.38 0.1 20);
+  --dusk-sun: oklch(0.83 0.16 65);
+
+  --ring: oklch(0.84 0.15 75);
+  --header-h: 4rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-neon-pink: var(--neon-pink);
+  --color-neon-violet: var(--neon-violet);
+  --color-neon-cyan: var(--neon-cyan);
+  --color-ring: var(--ring);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display-face);
+}
+
+@theme static {
+  /* Canonical motion tokens (mirrored in src/lib/motion.ts) */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-standard: cubic-bezier(0.65, 0, 0.35, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: var(--ease-standard);
+
+  --radius-card: 1.25rem;
+
+  --animate-float: float 6s var(--ease-standard) infinite alternate;
+  --animate-pulse-soft: pulse-soft 2.4s var(--ease-standard) infinite;
+  --animate-kenburns: kenburns 22s linear infinite alternate;
+  --animate-dust: dust 14s linear infinite;
+  --animate-shimmer: shimmer 3.2s var(--ease-standard) infinite alternate;
+  --animate-blink: blink 4.5s steps(1) infinite;
+  --animate-tap: tap 0.9s var(--ease-standard) infinite alternate;
+  --animate-bob: bob 2.6s var(--ease-standard) infinite alternate;
+
+  @keyframes float {
+    to { transform: translateY(-10px); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 0.55; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(4px); }
+  }
+  @keyframes kenburns {
+    from { transform: scale(1) translate3d(0, 0, 0); }
+    to { transform: scale(1.07) translate3d(-1.5%, -1%, 0); }
+  }
+  @keyframes dust {
+    from { transform: translate3d(-10vw, 0, 0); opacity: 0; }
+    15% { opacity: var(--dust-opacity, 0.5); }
+    85% { opacity: var(--dust-opacity, 0.5); }
+    to { transform: translate3d(110vw, -6vh, 0); opacity: 0; }
+  }
+  @keyframes shimmer {
+    from { transform: skewX(-8deg) scaleY(1); opacity: 0.35; }
+    to { transform: skewX(8deg) scaleY(1.4); opacity: 0.6; }
+  }
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    94%, 96% { transform: scaleY(0.1); }
+  }
+  @keyframes tap {
+    to { transform: rotate(-12deg); }
+  }
+  @keyframes bob {
+    to { transform: translateY(-3px) rotate(-1.5deg); }
+  }
+}
+
+@layer base {
+  html {
+    scrollbar-gutter: stable;
+    background: var(--background);
+    color: var(--foreground);
+    scroll-behavior: smooth;
+    scroll-padding-top: calc(var(--header-h) + 1rem);
+    -webkit-tap-highlight-color: transparent;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+  body {
+    min-height: 100dvh;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  /* Scroll lock while the intro plays (set by IntroSequence, JS only). */
+  html[data-scroll-lock] {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  h1, h2, h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--neon-pink) 45%, transparent);
+  }
+}
+
+/* Returning visitors skip straight to the bus reveal without a flash of scene 1. */
+html[data-intro="seen"] [data-scene="real"],
+html[data-intro="seen"] [data-scene="cartoon"] {
+  opacity: 0;
+  visibility: hidden;
+}
+html[data-intro="seen"] [data-scene="bus"] {
+  opacity: 1;
+}
+html[data-intro="seen"] [data-intro-hint] {
+  display: none;
+}
+
+/* The site header stays out of the way until the bus is revealed. */
+[data-site-header] {
+  transition: opacity 300ms var(--ease-enter), visibility 300ms allow-discrete;
+}
+html[data-intro-stage="real"] [data-site-header],
+html[data-intro-stage="cartoon"] [data-site-header] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Modal dialogs (mobile nav, lightbox) lock page scroll. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Smooth <details> open/close where supported (progressive enhancement). */
+@supports (interpolate-size: allow-keywords) {
+  :root { interpolate-size: allow-keywords; }
+  details::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 300ms var(--ease-enter), content-visibility 300ms allow-discrete;
+  }
+  details[open]::details-content {
+    block-size: auto;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    details::details-content { transition: none; }
+  }
+}
+
+@utility text-glow-amber {
+  text-shadow: 0 0 24px color-mix(in oklch, var(--primary) 55%, transparent);
+}
+
+@utility bg-grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E");
+}
