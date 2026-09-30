@@ -134,9 +134,9 @@ export function CartoonDesert() {
   return (
     <div aria-hidden="true" className="absolute inset-0">
       <DesertDefs />
-      <div className="absolute inset-0 bg-[linear-gradient(to_bottom,#3b8fd9_0%,#7cc4ee_42%,#ffe1a1_66%)]" />
-      <div className="absolute top-[10%] right-[12%] size-[22vmin] rounded-full bg-[radial-gradient(circle,#fff8d6_0%,#ffd76e_55%,#ffb347_68%,transparent_70%)] shadow-[0_0_120px_50px_rgb(255_205_110/0.45)]" />
-      <LoopLayer seconds={INTRO.loops.desertFar * 2.5} className="top-[6%] h-[14%] opacity-90">
+      {/* Sky, sun and sun glow as ONE layer (fewer full-screen layers to composite; no box-shadow square) */}
+      <div className="absolute inset-0 [background:radial-gradient(circle_at_calc(88%-11vmin)_calc(10%+11vmin),#fff8d6_0,#ffd76e_5.5vmin,#ffb347_7.5vmin,rgb(255_205_110/0.5)_11vmin,rgb(255_205_110/0.15)_17vmin,transparent_24vmin),linear-gradient(to_bottom,#3b8fd9_0%,#7cc4ee_42%,#ffe1a1_66%)]" />
+      <LoopLayer seconds={INTRO.loops.desertClouds} className="top-[6%] h-[14%] opacity-90">
         <Clouds />
       </LoopLayer>
       <LoopLayer seconds={INTRO.loops.desertFar} className="bottom-[33%] h-[32%]">

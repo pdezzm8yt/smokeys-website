@@ -69,14 +69,6 @@
   --animate-pulse-soft: pulse-soft 2.4s var(--ease-standard) infinite;
   --animate-tap: tap 0.9s var(--ease-standard) infinite alternate;
   --animate-bob: bob 2.6s var(--ease-standard) infinite alternate;
-  /* Intro loops (durations are overridden inline where a layer sets its own speed) */
-  --animate-pan: pan 2s linear infinite;
-  --animate-streak: streak 0.9s linear infinite;
-  --animate-kick: kick 0.8s var(--ease-enter) infinite;
-  --animate-whoosh: whoosh 0.36s var(--ease-enter) infinite;
-  --animate-run-real: run-real 0.34s var(--ease-standard) infinite;
-  --animate-run-cartoon: run-cartoon 0.2s var(--ease-standard) infinite;
-
   @keyframes float {
     to { transform: translateY(-10px); }
   }
@@ -89,34 +81,6 @@
   }
   @keyframes bob {
     to { transform: translateY(-3px) rotate(-1.5deg); }
-  }
-  /* LoopLayer renders 3 copies; sliding one copy (a third) loops seamlessly. */
-  @keyframes pan {
-    to { transform: translate3d(-33.3333%, 0, 0); }
-  }
-  @keyframes streak {
-    from { transform: translate3d(110%, 0, 0); opacity: 0; }
-    20% { opacity: 1; }
-    to { transform: translate3d(calc(-100vw - 110%), 0, 0); opacity: 0; }
-  }
-  @keyframes kick {
-    0% { transform: scale(0.3); opacity: 0; }
-    15% { opacity: 0.8; }
-    100% { transform: translate(-260%, -55%) scale(1.6) rotate(-25deg); opacity: 0; }
-  }
-  @keyframes whoosh {
-    0% { transform: scaleX(0.3); opacity: 0; }
-    30% { opacity: 1; }
-    100% { transform: translateX(-35%) scaleX(1); opacity: 0; }
-  }
-  /* Stride: body dips on the footfall, lifts mid-stride, pitches slightly forward. */
-  @keyframes run-real {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-2.2%) rotate(-0.7deg); }
-  }
-  @keyframes run-cartoon {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    50% { transform: translateY(-4%) rotate(-2deg); }
   }
 }
 
@@ -231,14 +195,22 @@ html[data-intro="seen"] [data-intro-hint] {
   translate: calc(-50% + var(--shift, 0px)) 0;
 }
 
-/* Intro: only scenes on (or entering) the screen run their loops. */
-[data-scene]:not([data-live]) *,
-[data-offscreen] * {
-  animation-play-state: paused !important;
+/* Intro loader: only when JS set data-intro-loading (first visit), never for no-JS visitors. */
+html[data-intro-loading] [data-intro-loader] {
+  display: flex;
 }
-[data-scene="real"]:not([data-live]),
-[data-scene="cartoon"]:not([data-live]) {
+html[data-intro-loading] [data-intro-hint="continue"] {
   visibility: hidden;
+}
+/* Tapped before the cartoon/bus images finished decoding: the prompt says so until the shot starts. */
+html[data-intro-waiting] [data-intro-hint="continue"] {
+  cursor: progress;
+}
+html[data-intro-waiting] [data-intro-hint="continue"] > [data-label] {
+  display: none;
+}
+html[data-intro-waiting] [data-intro-hint="continue"] > [data-waiting] {
+  display: inline;
 }
 
 /* The site header stays out of the way until the bus is revealed. */
@@ -276,14 +248,20 @@ html:has(dialog[open]) {
   text-shadow: 0 0 24px color-mix(in oklch, var(--primary) 55%, transparent);
 }
 
-/* Dust sprites are only fetched once the storm is on its way ([data-armed]). */
-[data-dust]:not([data-armed]) .dust-puff {
+/*
+ * Dust sprites are only fetched once the intro will actually play (never for
+ * skip-straight-to-bus visitors). "idle" (set pre-paint by the boot script):
+ * scene 1's running dust. "full" (once scene 1 is up): the dust-cloud sprites.
+ */
+html:not([data-intro-armed]) [data-particle],
+html:not([data-intro-armed="full"]) .dust-puff {
   background-image: none !important;
 }
 
 /* One puff of the intro dust explosion. Position, spin and size all derive
-   from the parent's --p progress (animated by Motion), so a single
-   animated value drives the whole cloud. */
+   from the parent's --p progress (tweened by the GSAP intro engine), so a
+   single animated value drives the whole cloud. Puffs start at size 0 and
+   reach their base size by p = 0.25: the cloud grows out of the running dust. */
 @utility dust-puff {
   position: absolute;
   left: 0;
@@ -294,7 +272,7 @@ html:has(dialog[open]) {
   background-size: contain;
   background-repeat: no-repeat;
   transform: translate(-50%, -50%) translate(calc(var(--dx) * var(--p)), calc(var(--dy) * var(--p)))
-    rotate(calc(var(--rot) * var(--p))) scale(calc(var(--s0) + var(--grow) * var(--p)));
+    rotate(calc(var(--rot) * var(--p))) scale(calc(var(--s0) * min(1, var(--p) * 4) + var(--grow) * var(--p)));
   will-change: transform;
 }
 
