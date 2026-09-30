@@ -6,7 +6,7 @@ import { quoteHref, site } from "@/content/site";
 import { CartoonDesert } from "./cartoon-desert";
 import { DesertBackdrop } from "./desert-backdrop";
 import { Mascot } from "./mascot";
-import { AnchoredSubject, KickDust, LoopLayer, SpeedLines, StripTile } from "./parts";
+import { AnchoredSubject, DustEmitter, LoopLayer, SpeedLines, StripTile } from "./parts";
 import { INTRO } from "./intro-config";
 import { RoadrunnerSilhouette } from "./roadrunner-silhouette";
 
@@ -38,10 +38,11 @@ export function SceneReal() {
         )}
       </div>
 
-      {/* Grade: warm the photo and pull focus to the bird */}
-      <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(to_bottom,rgb(18_10_4/0.45),transparent_38%,transparent_70%,rgb(24_10_2/0.5))]" />
-      <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_70%,transparent_40%,rgb(0_0_0/0.6)_100%)]" />
-      <div aria-hidden="true" className="bg-grain absolute inset-0 opacity-[0.035] max-md:hidden pointer-coarse:hidden" />
+      {/* Grade: warm the photo and pull focus to the bird (one layer: fewer full-screen layers to composite) */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 [background:radial-gradient(ellipse_at_50%_70%,transparent_40%,rgb(0_0_0/0.6)_100%),linear-gradient(to_bottom,rgb(18_10_4/0.45),transparent_38%,transparent_70%,rgb(24_10_2/0.5))]"
+      />
 
       <SpeedLines name="real" className="opacity-35" />
 
@@ -51,15 +52,18 @@ export function SceneReal() {
         alt=""
         priority
         sizes="(min-width: 1024px) 900px, 92vw"
-        idleClassName="motion-safe:animate-run-real"
+        trails={2}
         fallback={<RoadrunnerSilhouette className="w-full" />}
       >
         {/* Contact shadow + dirt kicked up by the planted foot */}
         <span aria-hidden="true" className="absolute -bottom-[4%] left-[30%] -z-10 h-[10%] w-[50%] rounded-[50%] bg-black/45 blur-md" />
-        <KickDust x={60} y={96} size={16} />
+        <DustEmitter name="real" x={60} y={96} size={16} count={6} phoneCount={4} />
       </AnchoredSubject>
 
-      <p className="absolute top-[max(5rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 font-display text-xs font-bold tracking-[0.6em] whitespace-nowrap text-white/75 motion-safe:animate-[pulse-soft_5s_ease-in-out_infinite] sm:top-[max(1.75rem,env(safe-area-inset-top))] sm:text-sm">
+      <p
+        data-intro-wordmark
+        className="absolute top-[max(5rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 font-display text-xs font-bold tracking-[0.6em] whitespace-nowrap text-white/75 sm:top-[max(1.75rem,env(safe-area-inset-top))] sm:text-sm"
+      >
         {site.name.toUpperCase()}
       </p>
     </div>
@@ -82,21 +86,23 @@ export function SceneCartoon() {
         image={cartoon.src}
         alt=""
         sizes="(min-width: 1024px) 480px, 74vw"
-        idleClassName="motion-safe:animate-run-cartoon"
+        trails={2}
         fallback={<Mascot className="w-full" />}
       >
         <span aria-hidden="true" className="absolute -bottom-[3%] left-[15%] -z-10 h-[8%] w-[70%] rounded-[50%] bg-[#7a3f16]/35 blur-sm" />
         {/* Cartoon "whoosh" lines trailing behind */}
         <span aria-hidden="true" className="absolute top-[34%] right-[92%] flex w-[70%] flex-col items-end gap-[0.9vmin]">
-          {[80, 55, 95, 65].map((w, i) => (
+          {[80, 55, 95, 65].map((w) => (
             <span
               key={w}
-              className="h-[0.9vmin] min-h-1 origin-right rounded-full bg-white/90 shadow-[0_0_0_2px_rgb(58_31_20/0.5)] motion-safe:animate-whoosh"
-              style={{ width: `${w}%`, animationDelay: `${-i * 0.09}s` }}
+              data-whoosh
+              className="h-[0.9vmin] min-h-1 origin-right rounded-full bg-white/90 opacity-0 shadow-[0_0_0_2px_rgb(58_31_20/0.5)] will-change-transform"
+              style={{ width: `${w}%` }}
             />
           ))}
         </span>
-        <KickDust x={22} y={94} size={30} count={5} period={0.6} />
+        {/* Dust kicked up by the feet; the engine thickens it into the storm */}
+        <DustEmitter name="cartoon" x={22} y={94} size={30} count={14} phoneCount={8} cartoon />
       </AnchoredSubject>
 
       <p
@@ -117,7 +123,10 @@ export function SceneBus() {
   const bus = assets.intro.bus;
   return (
     <div className="absolute inset-0 overflow-hidden bg-[#030205]">
-      <DesertBackdrop variant="night" />
+      {/* The camera tracks the bus as it rolls out of the dust */}
+      <div data-bus-world className="absolute inset-0 origin-[50%_80%] will-change-transform">
+        <DesertBackdrop variant="night" />
+      </div>
       <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_75%_40%_at_50%_100%,oklch(0.32_0.12_300/0.5),transparent_70%)]" />
       <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-1/4 bg-linear-to-t from-black/70 to-transparent" />
 
@@ -135,6 +144,21 @@ export function SceneBus() {
           aria-hidden="true"
           className="absolute -right-[22%] -bottom-[14%] -left-[16%] -z-20 h-[34%] rounded-[50%] bg-[radial-gradient(ellipse_at_62%_50%,oklch(0.85_0.12_75/0.45),oklch(0.55_0.2_310/0.35)_45%,transparent_72%)] blur-lg"
         />
+
+        {/* Shade that makes the bus "emerge from shadow" (opacity-only; masked to the bus) */}
+        {bus.src && (
+          <span
+            data-bus-shade
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 bg-black opacity-0"
+            style={{
+              maskImage: `url(${bus.mask.src})`,
+              WebkitMaskImage: `url(${bus.mask.src})`,
+              maskSize: "100% 100%",
+              WebkitMaskSize: "100% 100%",
+            }}
+          />
+        )}
 
         {/* Sheen that sweeps along the paint, masked to the bus silhouette */}
         {bus.src && (
