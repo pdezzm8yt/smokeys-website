@@ -1,0 +1,8 @@
+# Local-only: build caches, the compiled Vision tool, editor/agent config.
+.cache/
+.claude/
+.next/
+node_modules/
+# Secrets and local Vercel link state: never upload.
+.env*
+.vercel/

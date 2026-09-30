@@ -10,3 +10,6 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 .cache/
+
+# Machine-specific dev server config
+.claude/launch.json

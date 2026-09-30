@@ -16,7 +16,9 @@ const nextConfig: NextConfig = {
     qualities: [75, 85],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    // Until launch (see src/lib/indexing.ts), every response also tells crawlers not to index it.
+    const noindex = process.env.SITE_INDEXABLE === "true" && process.env.VERCEL_ENV !== "preview" ? [] : [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [{ source: "/:path*", headers: [...securityHeaders, ...noindex] }];
   },
 };
 
