@@ -30,3 +30,13 @@ Initial JS measured 2026-09-30: ~239 KB gzip (React + Next runtime ≈ 150 KB, M
 
 ## Assets needed from owner
 Licensed realistic roadrunner video/photo (landscape + portrait) · final mascot art (SVG/Lottie) · bus photos lights-off AND lights-on from the same tripod position · interior photos/video · logo SVG · brand colors/fonts · real specs, packages, contact details, service area, FAQ answers.
+
+## Deployment (pre-launch lockdown)
+Vercel project `smokey6/smokeys-website`, connected to GitHub `pdezzm8yt/smokeys-website`; production branch `main`.
+On the Hobby plan, Deployment Protection covers every URL except the production domain, so until launch:
+- `vercel.json` sets `git.deploymentEnabled.main = false`: pushes to `main` create no deployment. Every other branch gets a protected preview (sign-in required).
+- The production alias `smokeys-website-omega.vercel.app` was removed (the project domain entry is kept, so the name stays reserved).
+- `SITE_INDEXABLE` is unset: robots.txt disallows, pages and responses are `noindex`.
+
+To launch: delete the `git` block from `vercel.json`, set `SITE_INDEXABLE=true` for Production, attach the real custom domain, merge to `main`.
+
