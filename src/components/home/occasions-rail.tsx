@@ -57,7 +57,7 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
               type="button"
               onClick={() => page(dir)}
               disabled={disabled}
-              className="grid size-11 place-items-center rounded-full bg-white/6 ring-1 ring-white/12 transition-[background-color,opacity] hover:bg-white/12 disabled:opacity-35"
+              className="grid size-11 place-items-center rounded-full bg-muted ring-1 ring-border transition-[background-color,opacity] hover:bg-surface-raised disabled:opacity-35"
             >
               <Icon aria-hidden="true" className="size-5" />
               <span className="sr-only">{dir === -1 ? "Previous occasions" : "Next occasions"}</span>
@@ -79,26 +79,26 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
                 href={quoteHref}
                 onPointerMove={trackPointer}
                 className={cn(
-                  "group relative flex h-full min-h-64 flex-col overflow-hidden rounded-(--radius-card) bg-surface p-6 ring-1 ring-white/8",
-                  "transition-[transform,box-shadow] duration-300 ease-enter hover:-translate-y-1 hover:shadow-[0_24px_60px_-20px_var(--neon-violet)] hover:ring-white/20",
+                  "group relative flex h-full min-h-64 flex-col overflow-hidden rounded-(--radius-card) bg-surface-raised p-6 ring-1 ring-border",
+                  "transition-[transform,box-shadow] duration-300 ease-enter hover:-translate-y-1 hover:shadow-[0_24px_60px_-24px_var(--primary)] hover:ring-primary/50",
                   "motion-reduce:hover:translate-y-0",
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 [background:radial-gradient(18rem_circle_at_var(--mx,50%)_var(--my,50%),oklch(0.7_0.24_350/0.16),transparent_60%)]"
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 [background:radial-gradient(18rem_circle_at_var(--mx,50%)_var(--my,50%),color-mix(in_oklch,var(--primary)_18%,transparent),transparent_60%)]"
                 />
                 <span className="flex items-center justify-between">
-                  <span className="grid size-12 place-items-center rounded-2xl bg-linear-to-br from-neon-pink/25 to-neon-violet/20 text-neon-pink ring-1 ring-white/10">
+                  <span className="grid size-12 place-items-center rounded-2xl bg-linear-to-br from-primary/30 to-accent/15 text-gold ring-1 ring-primary/30">
                     <Icon aria-hidden="true" className="size-6" />
                   </span>
-                  <span aria-hidden="true" className="font-display text-xs text-white/25 tabular-nums">
+                  <span aria-hidden="true" className="font-display text-xs text-muted-foreground/60 tabular-nums">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                 </span>
                 <span className="mt-6 font-display text-xl font-bold">{o.title}</span>
                 <span className="mt-2 text-sm leading-relaxed text-muted-foreground">{o.blurb}</span>
-                <span className="mt-auto flex items-center gap-2 pt-6 text-sm font-semibold text-primary">
+                <span className="mt-auto flex items-center gap-2 pt-6 text-sm font-semibold text-gold">
                   Plan this ride
                   <ArrowRight aria-hidden="true" className="size-4 transition-transform duration-300 group-hover:translate-x-1" />
                 </span>

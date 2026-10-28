@@ -13,10 +13,10 @@ const base =
 const variants: Record<Variant, string> = {
   primary:
     "bg-primary text-primary-foreground shadow-[0_0_0_1px_oklch(1_0_0/0.15)_inset,0_8px_30px_-8px_var(--primary)] " +
-    "hover:shadow-[0_0_0_1px_oklch(1_0_0/0.25)_inset,0_10px_44px_-6px_var(--primary)] hover:bg-[oklch(0.84_0.15_72)]",
+    "hover:shadow-[0_0_0_1px_oklch(1_0_0/0.25)_inset,0_10px_44px_-6px_var(--primary)] hover:brightness-105",
   secondary:
-    "bg-white/8 text-foreground ring-1 ring-white/20 ring-inset backdrop-blur-md hover:bg-white/14 hover:ring-white/35",
-  ghost: "text-muted-foreground hover:text-foreground hover:bg-white/6",
+    "bg-muted text-foreground ring-1 ring-border ring-inset backdrop-blur-md hover:bg-surface-raised hover:ring-primary/60",
+  ghost: "text-muted-foreground hover:text-foreground hover:bg-muted",
 };
 
 const sizes: Record<Size, string> = {
@@ -38,10 +38,10 @@ type ButtonLinkProps = Omit<ComponentProps<"a">, "href"> & {
   size?: Size;
 };
 
-/** A link styled as a button. Hash links stay plain anchors; routes use next/link. */
+/** A link styled as a button. Section links ("#…", "/#…") stay plain anchors (the browser scrolls); routes use next/link. */
 export function ButtonLink({ href, variant, size, className, ...props }: ButtonLinkProps) {
   const classes = buttonClasses({ variant, size, className });
-  if (href.startsWith("#") || href.startsWith("tel:") || href.startsWith("mailto:")) {
+  if (href.startsWith("#") || href.startsWith("/#") || href.startsWith("tel:") || href.startsWith("sms:") || href.startsWith("mailto:")) {
     return <a href={href} className={classes} {...props} />;
   }
   return <Link href={href} className={classes} {...props} />;

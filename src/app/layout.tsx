@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { noScriptBandCss } from "@/components/intro/intro-film";
 import { Providers } from "@/components/providers";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
+import { LivingSky } from "@/components/sky/living-sky";
 import { site } from "@/content/site";
 import { bodyFont, displayFont } from "@/lib/fonts";
 import { siteIndexable } from "@/lib/indexing";
@@ -17,24 +19,24 @@ export const metadata: Metadata = {
     siteName: `${site.name} Party Bus`,
     title: `${site.name} Party Bus`,
     description: site.description,
-    url: "/",
   },
-  twitter: { card: "summary_large_image", title: `${site.name} Party Bus`, description: site.description },
-  alternates: { canonical: "/" },
+  // "summary" until there's a share image (opengraph-image); each page sets its own canonical and OG URL.
+  twitter: { card: "summary", title: `${site.name} Party Bus`, description: site.description },
   formatDetection: { telephone: false },
   robots: siteIndexable ? undefined : { index: false, follow: false },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0a10",
-  colorScheme: "dark",
+  // The sky engine updates theme-color to the day or night sky as it changes.
+  themeColor: "#040a26",
+  colorScheme: "light dark",
   viewportFit: "cover",
 };
 
 /**
  * Runs before first paint on the homepage. At the top, the intro's branded
  * loader shows (and the page holds still, so an early scroll can't run ahead
- * of the footage) until the footage is in memory, and the header stays out of
+ * of the film) until the intro's JS takes over, and the header stays out of
  * the way until the bus is revealed; a deep link (#bus…) starts with the header.
  * Failsafe: if the intro's JS hasn't taken over the loader within 12 s (it sets
  * data-intro-loading="js"), show the finished hero instead of a stuck loader.
@@ -45,21 +47,32 @@ export const viewport: Viewport = {
  * properties, and some names are the browser's own (`var top=…` is silently
  * ignored: window.top can't be replaced).
  */
-const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="bus"}else{d.dataset.introStage="real";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="bus";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="bus"}},{passive:true})}}}catch(e){}})()`;
+const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="end"}else{d.dataset.introStage="film";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="end";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="end"}},{passive:true})}}}catch(e){}})()`;
+
+/**
+ * Before first paint on every page: day or night sky (and the matching page
+ * theme), from the visitor's day/night booking preference (src/lib/booking-store.ts,
+ * BOOKING_KEY) or else the local time of day, so the wrong sky never flashes.
+ * Without JS the night theme is the default.
+ */
+const skyBootScript = `(function(){try{var d=document.documentElement,p;try{p=JSON.parse(localStorage.getItem("smokeys:booking")||"{}").period}catch(e){}var h=new Date().getHours();d.dataset.sky=p==="day"||p==="night"?p:(h>=6&&h<19?"day":"night")}catch(e){}})()`;
 
 /** No JavaScript: no scroll story, just the finished hero (the bus, SMOKEY'S and the CTAs). */
-const introNoScript = `.intro-scroll{height:100lvh}[data-scene="real"],[data-scene="cartoon"]{opacity:0;visibility:hidden}[data-scene="bus"],[data-bus-copy]{opacity:1;visibility:visible}[data-bus-shade]{opacity:0}[data-intro-hint],[data-clip]{display:none}`;
+const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim],[data-stage-fade]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-wordmark],[data-intro-hint]){display:none}${noScriptBandCss()}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${displayFont.variable} ${bodyFont.variable}`} suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: skyBootScript }} />
         <script dangerouslySetInnerHTML={{ __html: introBootScript }} />
         <noscript>
           <style>{introNoScript}</style>
         </noscript>
       </head>
-      <body className="bg-background text-foreground">
+      {/* No background on body: the page's colour is html's, painted under the fixed sky (a body background would cover it). */}
+      <body className="text-foreground">
+        <LivingSky />
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:rounded-full focus:bg-primary focus:px-5 focus:py-3 focus:font-semibold focus:text-primary-foreground"

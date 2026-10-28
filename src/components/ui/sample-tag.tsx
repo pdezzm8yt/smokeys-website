@@ -9,8 +9,8 @@ export function SampleTag({ label = "Sample", className }: { label?: string; cla
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-dashed border-white/30 bg-black/40 px-2 py-0.5",
-        "text-[0.6875rem] font-medium tracking-wide text-white/75 uppercase backdrop-blur-sm",
+        "inline-flex items-center gap-1 rounded-full border border-dashed border-white/35 bg-black/70 px-2 py-0.5",
+        "text-[0.6875rem] font-medium tracking-wide text-white/90 uppercase backdrop-blur-sm",
         className,
       )}
     >

@@ -100,7 +100,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
               onClick={() => setFilter(f.id)}
               className={cn(
                 "relative min-h-11 rounded-full px-5 text-sm font-semibold ring-1 transition-colors",
-                active ? "text-primary-foreground ring-transparent" : "text-muted-foreground ring-white/12 hover:text-foreground hover:ring-white/25",
+                active ? "text-primary-foreground ring-transparent" : "text-muted-foreground ring-border hover:text-foreground hover:ring-primary/50",
               )}
             >
               {active && <m.span layoutId="gallery-filter" transition={spring.snappy} aria-hidden="true" className="absolute inset-0 rounded-full bg-primary" />}
@@ -124,7 +124,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
               <button
                 type="button"
                 onClick={(e) => open(i, e.currentTarget)}
-                className="group relative block size-full overflow-hidden rounded-2xl ring-1 ring-white/8"
+                className="group relative block size-full overflow-hidden rounded-2xl ring-1 ring-border"
               >
                 <span className="absolute inset-0 transition-transform duration-500 ease-enter group-hover:scale-105 motion-reduce:group-hover:scale-100">
                   <Media item={item} sizes="(min-width: 768px) 33vw, 50vw" />
@@ -148,7 +148,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
         onClick={(e) => {
           if (e.target === e.currentTarget) close();
         }}
-        className="m-auto size-full max-h-none max-w-none bg-transparent p-0 text-foreground backdrop:bg-black/85 backdrop:backdrop-blur-md"
+        className="theme-night m-auto size-full max-h-none max-w-none bg-transparent p-0 text-foreground backdrop:bg-black/85 backdrop:backdrop-blur-md"
       >
         {current && openIndex !== null && (
           <div className="pointer-events-none flex size-full flex-col items-center justify-center gap-4 p-4 sm:p-10">
