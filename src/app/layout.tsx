@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { noScriptBandCss } from "@/components/intro/intro-film";
 import { Providers } from "@/components/providers";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -48,7 +49,7 @@ export const viewport: Viewport = {
 const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="end"}else{d.dataset.introStage="film";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="end";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="end"}},{passive:true})}}}catch(e){}})()`;
 
 /** No JavaScript: no scroll story, just the finished hero (the bus, SMOKEY'S and the CTAs). */
-const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-wordmark],[data-intro-hint]){display:none}`;
+const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim],[data-stage-fade]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-wordmark],[data-intro-hint]){display:none}${noScriptBandCss()}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

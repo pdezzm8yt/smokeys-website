@@ -14,7 +14,8 @@
  *   - scrolls the whole intro DOWN at a steady speed, then back UP, recording
  *     every animation frame, and reports FPS, slow frames (>25 ms), worst frame
  *     and long tasks per stretch of the story (by scroll progress), plus how
- *     many film frames per second reached the screen (requestVideoFrameCallback).
+ *     many DISTINCT film frames per second reached the screen (requestVideoFrameCallback
+ *     media times; the whole sweep can show at most the film's frame count).
  * With --frames it also saves a filmstrip at fixed scroll positions (down, then
  * back up), once the scrubbed timeline has caught up, plus image fidelity.
  */
@@ -89,11 +90,13 @@ function sweep(page, from, to, ms) {
         const range = s.offsetHeight - innerHeight;
         const frames = [];
         const longTasks = [];
-        // Film frames that actually reached the screen while scrubbing.
+        // Film frames that reached the screen while scrubbing: DISTINCT frames (by their media time; a seek that
+        // lands on the frame already shown presents it again), and raw presentations.
         const v = document.querySelector("[data-film]");
-        let filmFrames = 0;
+        const distinct = new Set();
+        let presented = 0;
         let counting = true;
-        const onFrame = () => { filmFrames++; if (counting) v.requestVideoFrameCallback(onFrame); };
+        const onFrame = (_now, md) => { presented++; distinct.add(md.mediaTime.toFixed(3)); if (counting) v.requestVideoFrameCallback(onFrame); };
         if (v?.requestVideoFrameCallback) v.requestVideoFrameCallback(onFrame);
         const po = new PerformanceObserver((l) => l.getEntries().forEach((e) => longTasks.push(Math.round(e.duration))));
         po.observe({ type: "longtask", buffered: false });
@@ -104,7 +107,7 @@ function sweep(page, from, to, ms) {
           window.scrollTo(0, p * range);
           frames.push([t, p]);
           if (k < 1) requestAnimationFrame(step);
-          else setTimeout(() => { counting = false; po.disconnect(); resolve({ frames, longTasks, filmFps: +((1000 * filmFrames) / (performance.now() - t0)).toFixed(1) }); }, 50);
+          else setTimeout(() => { counting = false; po.disconnect(); const secs = (performance.now() - t0) / 1000; resolve({ frames, longTasks, filmFps: +(distinct.size / secs).toFixed(1), filmFrames: distinct.size, presentationsPerSec: +(presented / secs).toFixed(1) }); }, 50);
         };
         requestAnimationFrame(step);
       }),
@@ -112,13 +115,15 @@ function sweep(page, from, to, ms) {
   );
 }
 
-function summarize({ frames, longTasks, filmFps }) {
+function summarize({ frames, longTasks, filmFps, filmFrames, presentationsPerSec }) {
   const deltas = frames.slice(1).map(([t, p], i) => [t - frames[i][0], p]);
   const avg = deltas.reduce((a, [d]) => a + d, 0) / Math.max(1, deltas.length);
   const sorted = deltas.map(([d]) => d).sort((a, b) => a - b);
   return {
     fps: +(1000 / avg).toFixed(1),
     filmFps,
+    filmFrames,
+    presentationsPerSec,
     slowPct: +((100 * deltas.filter(([d]) => d > 25).length) / Math.max(1, deltas.length)).toFixed(1),
     worstMs: Math.round(Math.max(...deltas.map(([d]) => d))),
     p95Ms: Math.round(sorted[Math.floor(sorted.length * 0.95)] ?? 0),

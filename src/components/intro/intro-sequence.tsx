@@ -43,6 +43,25 @@ function setScrollLock(locked: boolean) {
   else delete html().dataset.scrollLock;
 }
 
+/**
+ * Change the intro's scroll length (still mode, or the finished hero after a
+ * failure) without moving what the visitor sees: at or past the end of the
+ * intro (after Skip, a deep link) they keep their place relative to its end;
+ * part-way through, they keep their progress; at the top nothing moves.
+ */
+function keepPlace(section: HTMLElement, change: () => void) {
+  const before = section.getBoundingClientRect();
+  const range = section.offsetHeight - window.innerHeight;
+  const progress = range > 0 ? Math.min(1, Math.max(0, -before.top / range)) : 0;
+  const pastEnd = before.bottom <= window.innerHeight + 8;
+  change();
+  const after = section.getBoundingClientRect(); // (forces the new layout)
+  if (pastEnd) window.scrollBy({ top: after.bottom - before.bottom, behavior: "instant" });
+  else if (-before.top > 8) {
+    window.scrollTo({ top: section.offsetTop + progress * Math.max(0, section.offsetHeight - window.innerHeight), behavior: "instant" });
+  }
+}
+
 /** Resolve with `promise`, or with `fallback` / reject after `ms` (a stalled request must never hold the page). */
 function within<T>(promise: Promise<T>, ms: number, fallback?: { value: T }) {
   return Promise.race([
@@ -78,11 +97,13 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
     // The boot script's failsafe already showed the finished hero (JS arrived very late): keep it.
     if (html().hasAttribute("data-intro-failed")) return;
     const still = introStill();
-    if (still) html().dataset.introStill = "";
+    // (Save-Data has no CSS media query: the section shortens now, maybe after a pre-JS Skip.)
+    if (still) keepPlace(section, () => (html().dataset.introStill = ""));
     // At the top, the story waits for its film; a restored or linked scroll position doesn't.
     const atTop = window.scrollY < 8 && (!window.location.hash || window.location.hash === "#top");
     if (atTop) {
       html().dataset.introLoading = "js"; // JS owns the loader now (the boot script's failsafe stands down)
+      html().dataset.introStage ??= "film"; // (set by the boot script, except after a client-side navigation)
       setScrollLock(true); // (the boot script already holds it from first paint)
     } else {
       html().removeAttribute("data-intro-loading");
@@ -92,8 +113,14 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
     const media = new FilmMedia(stage, still);
     const progress = stage.querySelector<HTMLElement>("[data-intro-progress]");
     const onProgress = (f: number) => {
-      if (progress) progress.style.transform = `scaleX(${f})`;
+      // `scale`, not `transform`: Tailwind 4's scale-x-0 is the `scale` property, which multiplies with any transform.
+      if (progress) progress.style.scale = `${f} 1`;
     };
+    // Until the engine re-measures on its own, keep the film's band (feathered edges) right on resize.
+    const onResize = () => media.band();
+    window.addEventListener("resize", onResize);
+    // The film downloads from the start, alongside the engine code, the opening still and the fonts.
+    const film = media.load(onProgress, INTRO.filmTimeoutMs);
 
     // While the page holds still at the top, any scroll away from it is navigation (the "Skip to
     // content" link, find-in-page, an in-page link): let it go and stop holding.
@@ -115,24 +142,32 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
         if (!media.cut) throw new Error("The intro has no film.");
         // The opening frame is on screen: the loader lifts, and the scroll hint shows the film's
         // download progress until it's in memory.
-        if (!still) html().dataset.introPending = "";
+        if (!still && !media.ready) html().dataset.introPending = "";
         html().removeAttribute("data-intro-loading");
-        const ready = await media.load(onProgress, INTRO.filmTimeoutMs);
+        const ready = await film;
         if (cancelled) return;
         // No film (still mode, or it couldn't load in time): the stills tell the story, on the shorter scroll.
-        if (!ready) html().dataset.introStill = "";
+        if (!ready) keepPlace(section, () => (html().dataset.introStill = ""));
+        window.removeEventListener("resize", onResize);
         const eng = new mod.IntroEngine(section, stage, media, { still: !ready });
         engine.current = eng;
+        const landed = eng.start();
+        // After a Skip the finished hero is showing: keep it up until the film shows the same frame.
+        if (html().hasAttribute("data-intro-final")) await landed;
+        if (cancelled) return;
         delete html().dataset.introFinal; // the timeline owns the stage from here
-        eng.start();
         delete html().dataset.introPending;
         setScrollLock(false);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         if (cancelled) return;
-        // The engine couldn't load (offline, blocked script), or there's no film: show the finished hero instead.
-        html().dataset.introFinal = "";
-        html().dataset.introFailed = "";
+        // The engine couldn't load (offline, blocked script) or failed, or there's no film: show the finished hero instead.
+        console.error("[intro] showing the finished hero instead:", error);
+        media.cancel();
+        keepPlace(section, () => {
+          html().dataset.introFinal = "";
+          html().dataset.introFailed = "";
+        });
         html().removeAttribute("data-intro-loading");
         delete html().dataset.introPending;
         delete html().dataset.introStage;
@@ -141,7 +176,9 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
 
     return () => {
       cancelled = true;
+      media.cancel();
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
       engine.current?.destroy();
       engine.current = null;
       setScrollLock(false);
@@ -194,6 +231,9 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
           className="pointer-events-none invisible absolute inset-0 z-20 bg-[radial-gradient(circle_at_50%_55%,#d0a06a_0%,#a5713f_50%,#5e3b1f_100%)] opacity-0"
         />
 
+        {/* The handoff: the bottom of the stage fades into the page's background as the film comes to rest. */}
+        <div data-stage-fade aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-[28%] bg-linear-to-t from-background via-background/70 to-transparent opacity-0" />
+
         {copy}
 
         {/* Branded loader until the film's opening frame is on screen (only when JS set data-intro-loading). */}
@@ -239,10 +279,11 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
         </a>
 
         {hasPlaceholderFootage ? (
-          // Readable over the brightest frame, clear of the centred controls on narrow phones, never in the way of a tap.
+          // Readable over the brightest frame, clear of the centred controls on narrow phones, never in the way
+          // of a tap, and on screen in every layout while the footage isn't Smokey's own bus.
           <SampleTag
             label="Placeholder footage"
-            className="intro-bottom-ui pointer-events-none absolute right-4 z-30 bg-black/75 text-white/90 max-sm:mb-14 short:hidden"
+            className="intro-bottom-ui pointer-events-none absolute right-4 z-30 bg-black/75 text-white/90 max-sm:mb-14"
           />
         ) : null}
       </div>

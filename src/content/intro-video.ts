@@ -15,8 +15,8 @@
  * Replacing footage (see assets/intro-source/video/README.md):
  *   1. Put the master in assets/intro-source/video/ named after the cut's
  *      `file` (e.g. film-wide.mp4). Any common format works.
- *   2. Set that cut's `beats` (and trim/crop if needed): `npm run video:inspect`
- *      makes a contact sheet to read them from.
+ *   2. Set that cut's `beats` (and trim/crop if needed), read off
+ *      `npm run video:inspect -- <master> --from=7 --to=9 --step=0.125` strips.
  *   3. `npm run video:build` → regenerates its web files in public/video/intro/.
  *
  * Times are seconds into the PROCESSED cut (after trim). Positions are
@@ -45,7 +45,7 @@ export type FilmBeats = {
 export type FilmCutConfig = {
   /** Base name: the master is assets/intro-source/video/<file>.*, web files public/video/intro/<file>*. */
   file: string;
-  /** Use only this part of the master (seconds). Ending just after `rest` keeps the download small. */
+  /** Use only this part of the master (seconds). Without `end`, the build ends the film just after `rest` (a smaller download). */
   trim?: { start?: number; end?: number };
   /** Keep only this region of the master as you see it (fractions of the frame), e.g. to drop a watermark. Applied before `mirror`. */
   crop?: { x: number; y: number; w: number; h: number };
@@ -66,8 +66,8 @@ export const introFilm = {
   label: "Roadrunner to party bus",
   /**
    * The footage isn't final: the bus in it is a generic coach, not Smokey's
-   * bus. Keeps the "Placeholder footage" tag on screen; set to false once a
-   * render with the real bus replaces it.
+   * bus. Keeps the "Placeholder footage" tag on screen (for both cuts); set to
+   * false once EVERY built cut shows the real bus.
    */
   placeholder: true,
   cuts: {

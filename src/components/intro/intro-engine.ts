@@ -86,7 +86,7 @@ export class IntroEngine {
   private master: gsap.core.Timeline | null = null;
   private trigger: ScrollTrigger | null = null;
   /** Frame-accurate scrubbing without a seek backlog: one seek in flight, the latest target queued. */
-  private seeking: { busy: boolean; want: number; onSeeked: () => void } | null = null;
+  private seeking: { busy: boolean; want: number; requested: number; onSeeked: () => void } | null = null;
   private revealed: boolean | null = null;
   /**
    * ScrollTrigger reverts the timeline to 0 while it re-measures (resize,
@@ -112,44 +112,30 @@ export class IntroEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // Layout
-  // ---------------------------------------------------------------------------
-
-  /** The height the film is framed in (the small viewport: never under a phone's toolbar). */
-  private get frameHeight() {
-    return this.q("[data-frame]")[0]?.offsetHeight || this.stage.clientHeight;
-  }
-
-  /** A film narrower or shorter than the frame is shown as a band: feather the edges that end on screen (the glow shows around it). */
-  private layout() {
-    const box = this.film.box;
-    if (!box) return;
-    const band = box.offsetHeight < this.frameHeight - 1 ? "y" : box.offsetWidth < this.stage.clientWidth - 1 ? "x" : null;
-    if (band) box.dataset.banded = band;
-    else delete box.dataset.banded;
-  }
-
-  // ---------------------------------------------------------------------------
   // The film follows the playhead
   // ---------------------------------------------------------------------------
 
   /**
    * Seek without piling up: one seek in flight; when it lands, jump to the
-   * newest target. Targets are clamped to the film, so a beat set past the
-   * footage can never make it re-seek forever.
+   * newest target. A target within half a frame of the last one REQUESTED is
+   * already on screen (compared with what we asked for, never with
+   * currentTime, which some browsers round to the frame: that would re-seek
+   * forever). Targets are clamped to the film.
    */
   private seek(time: number) {
     const v = this.film.video;
     if (!v) return;
-    const end = Number.isFinite(v.duration) ? Math.max(0, v.duration - 0.04) : time;
+    const halfFrame = 0.5 / (this.film.cut?.manifest.fps || 30);
+    const end = Number.isFinite(v.duration) ? Math.max(0, v.duration - 2 * halfFrame) : time;
     const want = Math.min(Math.max(0, time), end);
     if (!this.seeking) {
       const state = {
         busy: false,
         want,
+        requested: v.currentTime,
         onSeeked: () => {
           state.busy = false;
-          if (Math.abs(v.currentTime - state.want) > 0.02) this.seek(state.want);
+          this.seek(state.want);
         },
       };
       v.addEventListener("seeked", state.onSeeked);
@@ -157,9 +143,25 @@ export class IntroEngine {
     }
     const s = this.seeking;
     s.want = want;
-    if (s.busy || Math.abs(v.currentTime - want) < 0.02) return;
+    if (s.busy || Math.abs(s.requested - want) < halfFrame) return;
     s.busy = true;
+    s.requested = want;
     v.currentTime = want;
+  }
+
+  /** Resolves when the film shows the playhead's frame (at once if no seek is under way; at most ~0.6 s). */
+  private landed() {
+    const v = this.film.video;
+    if (this.opts.still || !this.film.ready || !v || !this.seeking?.busy) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = () => {
+        window.clearTimeout(timer);
+        v.removeEventListener("seeked", done);
+        resolve();
+      };
+      const timer = window.setTimeout(done, 600);
+      v.addEventListener("seeked", done);
+    });
   }
 
   /** Everything that isn't a plain tween, derived from the playhead (idempotent: any jump lands right). */
@@ -179,9 +181,14 @@ export class IntroEngine {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /** Build the timeline (measured while nothing moves) and hook it to the scroll. */
+  /**
+   * Build the timeline (measured while nothing moves) and hook it to the
+   * scroll. Resolves once the film shows the frame for the current scroll
+   * position (so a finished hero shown meanwhile can hand over without a
+   * flash of another frame).
+   */
   start() {
-    this.layout();
+    this.film.band();
     this.ctx.add(() => {
       const tl = this.opts.still ? this.stillTimeline() : this.cinematicTimeline();
       this.master = tl; // sync() reads the playhead from here
@@ -200,7 +207,7 @@ export class IntroEngine {
         invalidateOnRefresh: true,
         onRefreshInit: () => {
           this.refreshing = true;
-          this.layout(); // re-measure before the timeline is re-evaluated
+          this.film.band(); // re-measure before the timeline is re-evaluated
         },
         onRefresh: () => {
           this.refreshing = false;
@@ -210,6 +217,7 @@ export class IntroEngine {
     });
     this.refreshing = false;
     this.sync();
+    return this.landed();
   }
 
   /** Put the DOM and the film back exactly as the page started (unmount). */
@@ -270,7 +278,7 @@ export class IntroEngine {
 
     // 4 ── Branding once the film has come to rest; the CTAs come last ──
     this.brandAndCtas(at, false);
-    tl.to({}, { duration: T.dwell }, s.end - T.dwell); // a beat to take it in before the page moves on
+    this.handoff(at);
     return tl;
   }
 
@@ -285,8 +293,18 @@ export class IntroEngine {
     at(q('[data-still="rest"]'), { opacity: 0 }, { opacity: 1, duration: 0.8 }, s.headlights);
     this.glows(at);
     this.brandAndCtas(at, true);
-    tl.to({}, { duration: T.dwell }, s.end - T.dwell);
+    this.handoff(at);
     return tl;
+  }
+
+  /**
+   * A last beat to take it in before the stage unpins: the bottom of the
+   * stage fades into the page's background, so the film flows into the
+   * section below instead of ending on a hard edge.
+   */
+  private handoff(at: At) {
+    const { end } = this.story;
+    at(this.q("[data-stage-fade]"), { opacity: 0 }, { opacity: 1, duration: T.dwell, ease: "power1.in" }, end - T.dwell);
   }
 
   private caption(at: At) {

@@ -61,6 +61,58 @@ function download(src: string, onBytes: (loaded: number, total: number) => void,
   return job;
 }
 
+const visible = () => document.visibilityState !== "hidden";
+
+/** Resolves once the page is visible (browsers hold back media loading and play() in background tabs). */
+function whenVisible() {
+  if (visible()) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const onChange = () => {
+      if (!visible()) return;
+      document.removeEventListener("visibilitychange", onChange);
+      resolve();
+    };
+    document.addEventListener("visibilitychange", onChange);
+  });
+}
+
+/**
+ * Resolves after `ms` of the page being VISIBLE (the clock stops in a
+ * background tab, where the browser wouldn't let the film load anyway).
+ * Returns a cancel function alongside.
+ */
+function visibleTimeout(ms: number) {
+  let left = ms;
+  let started = 0;
+  let timer = 0;
+  let resolve!: () => void;
+  const done = new Promise<void>((r) => (resolve = r));
+  const run = () => {
+    started = performance.now();
+    timer = window.setTimeout(finish, left);
+  };
+  const onChange = () => {
+    if (visible()) {
+      if (!timer) run();
+    } else if (timer) {
+      window.clearTimeout(timer);
+      timer = 0;
+      left = Math.max(0, left - (performance.now() - started));
+    }
+  };
+  const cancel = () => {
+    window.clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onChange);
+  };
+  function finish() {
+    cancel();
+    resolve();
+  }
+  document.addEventListener("visibilitychange", onChange);
+  if (visible()) run();
+  return { done, cancel };
+}
+
 /**
  * Point the video at the downloaded file, make the browser decode real frames
  * (a muted play() + pause() does that on every browser, iOS included; if
@@ -72,12 +124,14 @@ async function prime(video: HTMLVideoElement, url: string) {
   video.defaultMuted = true;
   video.playsInline = true;
   video.preload = "auto";
+  await whenVisible();
   if (video.src !== url) {
     const meta = waitFor(video, "loadedmetadata", 10_000);
     video.src = url;
     await meta;
   }
-  await video.play().catch(() => {});
+  // Optional warm-up: never wait on a play() the browser keeps pending (Firefox in a background tab).
+  await Promise.race([video.play().catch(() => {}), new Promise((r) => window.setTimeout(r, 1000))]);
   video.pause();
   const seeked = waitFor(video, "seeked", 5_000);
   video.currentTime = 0;
@@ -93,6 +147,8 @@ export class FilmMedia {
   ready = false;
   private readonly root: HTMLElement;
   private readonly candidates: Variant[];
+  /** Stops a load in progress (unmount, or the intro gave up). */
+  private stop: (() => void) | null = null;
 
   constructor(
     root: HTMLElement,
@@ -105,6 +161,22 @@ export class FilmMedia {
     this.video = this.box?.querySelector("video") ?? null;
     this.candidates = still || !this.cut ? [] : variantsFor(this.cut, deviceProfile());
     this.pin();
+    this.band();
+  }
+
+  /**
+   * A film narrower or shorter than the frame is shown as a band: mark it so
+   * the edges that end on screen feather into the glow (globals.css). Run on
+   * creation (the stills show before the engine exists) and by the engine
+   * whenever it re-measures.
+   */
+  band() {
+    const box = this.box;
+    if (!box) return;
+    const frameHeight = this.root.querySelector<HTMLElement>("[data-frame]")?.offsetHeight || this.root.clientHeight;
+    const band = box.offsetHeight < frameHeight - 1 ? "y" : box.offsetWidth < this.root.clientWidth - 1 ? "x" : null;
+    if (band) box.dataset.banded = band;
+    else delete box.dataset.banded;
   }
 
   /**
@@ -141,9 +213,9 @@ export class FilmMedia {
 
   /**
    * Download and prime the film, reporting progress 0–1. Resolves true when
-   * it's ready, false if it can't be (still mode, nothing playable, or
-   * `timeoutMs` passed: the download is then cancelled and the story is told
-   * with the stills instead).
+   * it's ready, false if it can't be (still mode, nothing playable, cancel(),
+   * or `timeoutMs` of the page being visible passed: the download is then
+   * cancelled and the story is told with the stills instead).
    */
   async load(onProgress: (fraction: number) => void, timeoutMs: number) {
     const video = this.video;
@@ -153,6 +225,10 @@ export class FilmMedia {
     }
     const abort = new AbortController();
     let settled = false;
+    const timeout = visibleTimeout(timeoutMs);
+    let stopped!: () => void;
+    const stoppedEarly = new Promise<void>((r) => (stopped = r));
+    this.stop = stopped;
     const expected = this.expectedBytes();
     // The bar only ever grows (a fallback file continues from where the last one got to).
     let shown = 0;
@@ -179,9 +255,9 @@ export class FilmMedia {
         }
       }
     })();
-    let timer = 0;
-    await Promise.race([work, new Promise<void>((resolve) => (timer = window.setTimeout(resolve, timeoutMs)))]);
-    window.clearTimeout(timer);
+    await Promise.race([work, timeout.done, stoppedEarly]);
+    timeout.cancel();
+    this.stop = null;
     settled = true;
     abort.abort(); // cancel whatever is still downloading
     if (!this.ready && video.getAttribute("src")) {
@@ -190,6 +266,11 @@ export class FilmMedia {
     }
     onProgress(1);
     return this.ready;
+  }
+
+  /** Stop a load in progress: it resolves false at once and cancels its download. */
+  cancel() {
+    this.stop?.();
   }
 
   /** Put the film back on its first frame (unmount). */

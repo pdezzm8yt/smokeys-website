@@ -69,6 +69,30 @@ export function variantsFor(cut: Cut, device: DeviceProfile): Variant[] {
   return out;
 }
 
+/**
+ * The band rule (FilmMedia.band) as media queries, for pages where no script
+ * runs (no JS): a film that can't cover the frame within its minVisible gets
+ * its feathered edges from CSS alone. From .intro-film's sizing, a film is
+ * pillarboxed on screens wider than aspect / minVisible.y and letterboxed on
+ * screens narrower than aspect × minVisible.x (judged on the viewport, so
+ * approximate under a phone's toolbar).
+ */
+export function noScriptBandCss() {
+  const tallCut = cutFor(false);
+  const wideCut = cutFor(true);
+  if (!tallCut || !wideCut) return "";
+  const ratio = (x: number) => `${Math.max(1, Math.round(x * 1000))}/1000`;
+  const mask = (dir: "right" | "bottom", edge: number) =>
+    `.intro-film{mask-image:linear-gradient(to ${dir},transparent,#000 ${edge}%,#000 ${100 - edge}%,transparent)}`;
+  const rules = (cut: Cut, range: string) => [
+    `@media ${range}(min-aspect-ratio: ${ratio(cut.aspect / cut.minVisible.y)}){${mask("right", 7)}}`,
+    `@media ${range}(max-aspect-ratio: ${ratio(cut.aspect * cut.minVisible.x)}){${mask("bottom", 9)}}`,
+  ];
+  return tallCut === wideCut
+    ? rules(tallCut, "").join("")
+    : [...rules(tallCut, "(max-aspect-ratio: 999/1000) and "), ...rules(wideCut, `${WIDE_SCREEN} and `)].join("");
+}
+
 /** A cut's framing as the CSS variables .intro-film reads (see globals.css). */
 export function framingVars(cut: Cut, prefix = "") {
   return {

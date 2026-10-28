@@ -6,13 +6,14 @@
  *
  * Needs a running production server (`npm run build && npx next start -p 3100`)
  * and Playwright's Chromium (`npx playwright-core install --only-shell chromium`).
- * Playwright's Chromium has no H.264, so it scrubs the WebM version.
+ * Playwright's Chromium plays the H.264 files; flow 13 forces the VP9 fallback.
  * Prints one JSON report: first visit (loader, scroll held until the film
  * is in memory, scroll down and back up), unpinning, reduced motion, Skip
  * (also while loading, and before the page's JavaScript has run), deep links,
  * reload mid-intro, no JavaScript, keyboard, phone, a film that can't load,
  * rotation/resize, fast scrolling, autoplay blocked, 32:9, home link.
- * Exits with 1 if any page throws an uncaught error; read the rest of the
+ * Exits with 1 if any page throws an uncaught error, logs an [intro] error, or
+ * ends a flow with the intro failed (data-intro-failed); read the rest of the
  * report for anything unexpected.
  */
 import { chromium } from "playwright-core";
@@ -25,7 +26,10 @@ const results = {};
 const uncaught = [];
 async function context(opts) {
   const ctx = await browser.newContext(opts);
-  ctx.on("page", (p) => p.on("pageerror", (e) => uncaught.push(e.message)));
+  ctx.on("page", (p) => {
+    p.on("pageerror", (e) => uncaught.push(e.message));
+    p.on("console", (m) => m.type() === "error" && m.text().includes("[intro]") && uncaught.push(m.text()));
+  });
   return ctx;
 }
 const state = (page) =>
@@ -40,7 +44,8 @@ const state = (page) =>
       sectionScreens: +(s.offsetHeight / innerHeight).toFixed(2),
       loading: h.getAttribute("data-intro-loading"), pending: h.hasAttribute("data-intro-pending"), lock: h.hasAttribute("data-scroll-lock"),
       final: h.hasAttribute("data-intro-final"), still: h.hasAttribute("data-intro-still"), header: h.dataset.introStage ?? "(none)",
-      film: v.hasAttribute("data-ready") ? (v.currentSrc.split("/").pop().startsWith("blob:") ? "blob" : "ready") : "-",
+      film: v.hasAttribute("data-ready") ? (v.currentSrc.startsWith("blob:") ? "blob" : "network") : "-",
+      failed: h.hasAttribute("data-intro-failed"),
       filmT: +v.currentTime.toFixed(2), filmVisible: getComputedStyle(v).visibility === "visible" && getComputedStyle(v).display !== "none",
       stills: ["start", "cover", "rest"].map((n) => op(`[data-still="${n}"]`)).join("/"),
       haze: op('[data-fx="haze"]'), h1: op("#intro-title"), ctas: op("[data-bus-ctas]"), ctasVis: getComputedStyle(document.querySelector("[data-bus-ctas]")).visibility,
@@ -68,11 +73,15 @@ async function open(ctxOpts = {}, gotoOpts = {}) {
 const ready = (page) => page.waitForFunction(() => !document.documentElement.hasAttribute("data-intro-pending") && !document.documentElement.hasAttribute("data-intro-loading"), null, { timeout: 90000 });
 
 // 1. First visit: loader + scroll locked until the film is in memory, then scrubbed by the scroll, reversible.
-{ const { ctx, page, errors } = await open();
+//    The film's download is held back, so the lock is tested while it really holds (wheel, Space, PageDown).
+{ let release; const held = new Promise((r) => (release = r));
+  const { ctx, page, errors } = await open({}, { before: (c) => c.route(/\/video\/intro\/.*\.(mp4|webm)$/, async (r) => { await held; await r.continue(); }) });
   const atLoad = await state(page);
-  await page.mouse.wheel(0, 600); await page.waitForTimeout(200);
-  const lockedTry = await state(page);
-  await ready(page); await page.waitForTimeout(400);
+  await page.waitForFunction(() => document.documentElement.hasAttribute("data-intro-pending"), null, { timeout: 30000 });
+  await page.mouse.move(640, 400);
+  await page.mouse.wheel(0, 600); await page.keyboard.press("Space"); await page.keyboard.press("PageDown"); await page.waitForTimeout(400);
+  const lockedTry = { ...(await state(page)), scrollY: await page.evaluate(() => scrollY) };
+  release(); await ready(page); await page.waitForTimeout(400);
   const readyState = await state(page);
   await page.mouse.move(640, 400);
   for (let i = 0; i < 12; i++) { await page.mouse.wheel(0, 200); await page.waitForTimeout(60); }
@@ -132,8 +141,16 @@ const ready = (page) => page.waitForFunction(() => !document.documentElement.has
   results["8 no JavaScript"] = { ...st, errors }; await ctx.close(); }
 
 // 9. Keyboard: Space scrolls the story; Tab reaches the CTAs only once they're visible.
+//    At the top, every Tab stop up to "Skip intro" is recorded: none may be a (still hidden) CTA.
 { const { ctx, page, errors } = await open(); await ready(page);
-  await page.keyboard.press("Tab"); const firstTab = (await state(page)).focus;
+  const stops = [];
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press("Tab");
+    const stop = await page.evaluate(() => { const a = document.activeElement; return { label: a?.textContent?.trim().slice(0, 20) || a?.getAttribute("aria-label") || a?.tagName, inCtas: Boolean(a?.closest("[data-bus-ctas]")) }; });
+    stops.push(stop);
+    if (stop.label === "Skip intro") break;
+  }
+  const firstTab = { stops: stops.map((s) => s.label), ctaReachedWhileHidden: stops.some((s) => s.inCtas) };
   await page.evaluate(() => document.activeElement?.blur());
   for (let i = 0; i < 4; i++) { await page.keyboard.press("Space"); await page.waitForTimeout(250); }
   await page.waitForTimeout(1200); const afterSpace = await state(page);
@@ -158,14 +175,40 @@ const ready = (page) => page.waitForFunction(() => !document.documentElement.has
   const before = await state(page);
   await page.getByRole("button", { name: "Skip intro" }).click(); await page.waitForTimeout(400);
   const afterSkip = await state(page);
-  release(); await page.waitForLoadState("load"); await ready(page); await page.waitForTimeout(2000);
-  results["11 skip before JavaScript"] = { before: { loading: before.loading, lock: before.lock }, afterSkip, afterJs: await state(page), errors }; await ctx.close(); }
+  release(); await page.waitForLoadState("load");
+  // The engine has taken over once the finished hero is gone and the film is in memory.
+  const tookOver = await page.waitForFunction(() => { const h = document.documentElement; return !h.hasAttribute("data-intro-final") && !h.hasAttribute("data-intro-pending") && document.querySelector("[data-film]").hasAttribute("data-ready"); }, null, { timeout: 60000 }).then(() => true, () => false);
+  await page.waitForTimeout(800);
+  results["11 skip before JavaScript"] = { before: { loading: before.loading, lock: before.lock }, afterSkip, tookOver, afterJs: await state(page), errors }; await ctx.close(); }
 
 // 12. The film can't load (its files fail): the stills tell the story on the shorter scroll.
 { const { ctx, page, errors } = await open({}, { before: (c) => c.route(/\/video\/intro\/.*\.(mp4|webm)$/, (r) => r.abort()) }); await ready(page);
   const top = await state(page);
   await to(page, 1); await page.waitForTimeout(1200);
   results["12 film fails to load"] = { top, end: await state(page), errors }; await ctx.close(); }
+
+// 13. A browser that can't play the H.264 files: the VP9 version is the one fetched, and it scrubs.
+{ const { ctx, page, errors } = await open({}, { before: (c, p) => p.addInitScript(() => {
+    const orig = HTMLMediaElement.prototype.canPlayType;
+    HTMLMediaElement.prototype.canPlayType = function (type) { return type.startsWith("video/mp4") ? "" : orig.call(this, type); };
+  }) });
+  await ready(page);
+  const files = await page.evaluate(() => performance.getEntriesByType("resource").map((r) => r.name).filter((n) => /\/video\/intro\/.*\.(mp4|webm)$/.test(n)).map((n) => n.split("/").pop()));
+  await to(page, 0.5); await page.waitForTimeout(1400); const dust = await state(page);
+  await to(page, 1); await page.waitForTimeout(1400); const end = await state(page);
+  results["13 VP9 fallback"] = { files, dust: { film: dust.film, filmT: dust.filmT }, end: { filmT: end.filmT, h1: end.h1 }, errors }; await ctx.close(); }
+
+// 14. Skip while loading, then the film can't load: the finished hero stays where the visitor is
+//     (the intro getting shorter for the stills must not throw them 3 screens down the page).
+{ let fail; const failNow = new Promise((r) => (fail = r));
+  const { ctx, page, errors } = await open({}, { waitUntil: "domcontentloaded", before: (c) => c.route(/\/video\/intro\/.*\.(mp4|webm)$/, async (r) => { await failNow; await r.abort(); }) });
+  await page.waitForFunction(() => document.documentElement.hasAttribute("data-intro-pending"), null, { timeout: 60000 });
+  await page.getByRole("button", { name: "Skip intro" }).click(); await page.waitForTimeout(500);
+  const afterSkip = await state(page);
+  fail(); await ready(page); await page.waitForTimeout(1200);
+  const after = await state(page);
+  const h1Top = await page.evaluate(() => Math.round(document.querySelector("#intro-title").getBoundingClientRect().top));
+  results["14 skip then the film fails"] = { afterSkip: { progress: afterSkip.progress, final: afterSkip.final, h1: afterSkip.h1 }, after: { progress: after.progress, still: after.still, h1: after.h1, ctasVis: after.ctasVis, focus: after.focus }, h1Top, errors }; await ctx.close(); }
 
 const film = (page) => page.evaluate(() => {
   const v = document.querySelector("[data-film]");
@@ -230,6 +273,12 @@ const film = (page) => page.evaluate(() => {
 
 await browser.close();
 console.log(JSON.stringify(results, null, 1));
+// No flow sets out to break the engine: any flow that ended with the intro failed (finished hero instead of the film) is a failure.
+const failedFlows = Object.entries(results).filter(([, r]) => JSON.stringify(r).includes('"failed":true')).map(([name]) => name);
+if (failedFlows.length) {
+  console.error(`\nThe intro failed (data-intro-failed) in: ${failedFlows.join(", ")}`);
+  process.exitCode = 1;
+}
 if (uncaught.length) {
   console.error(`\n${uncaught.length} uncaught page error(s):\n${[...new Set(uncaught)].join("\n")}`);
   process.exitCode = 1;

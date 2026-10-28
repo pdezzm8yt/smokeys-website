@@ -38,8 +38,8 @@ export const INTRO = {
     brandAfterRest: 0.1,
     ctaAfterBrand: 0.5,
     ctaLength: 0.6,
-    /** A last beat to take it in before the stage unpins and the page scrolls on. */
-    dwell: 0.35,
+    /** A last beat to take it in (the stage fades into the page below) before it unpins and the page scrolls on. */
+    dwell: 0.6,
     /** "Fast like a roadrunner…" shows during the run. */
     captionAt: 0.3,
     captionFor: 0.8,

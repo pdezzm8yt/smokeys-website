@@ -30,8 +30,11 @@ const OUT = path.join(ROOT, ".cache/intro-video");
 const VIDEO_EXT = /\.(mp4|m4v|mov|webm|mkv|avi|gif|hevc|mts)$/i;
 const SAMPLES = 12;
 
-const files = process.argv.slice(2).length
-  ? process.argv.slice(2).map((f) => path.resolve(f))
+const args = process.argv.slice(2);
+const flag = (name) => args.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
+const paths = args.filter((a) => !a.startsWith("--"));
+const files = paths.length
+  ? paths.map((f) => path.resolve(f))
   : existsSync(SRC)
     ? readdirSync(SRC).filter((f) => VIDEO_EXT.test(f)).sort().map((f) => path.join(SRC, f))
     : [];
@@ -40,6 +43,43 @@ if (!files.length) {
   process.exit(1);
 }
 mkdirSync(OUT, { recursive: true });
+
+/*
+ * Fine strip, for reading the film's beats (src/content/intro-video.ts):
+ *   npm run video:inspect -- assets/intro-source/video/film-wide.mp4 --from=7 --to=9 --step=0.125
+ * writes .cache/intro-video/<name>-<from>-<to>.jpg: one labelled frame every `step` seconds of the
+ * MASTER. Beats are seconds after trim.start: subtract it if the cut has one.
+ */
+const from = flag("from");
+if (from !== undefined) {
+  const to = Number(flag("to") ?? Number(from) + 2);
+  const step = Number(flag("step") ?? 0.125);
+  const start = Number(from);
+  const count = Math.max(1, Math.floor((to - start) / step) + 1);
+  for (const file of files) {
+    const tiles = [];
+    for (let i = 0; i < count; i++) {
+      const t = start + i * step;
+      const raw = spawnSync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-ss", t.toFixed(3), "-i", file, "-frames:v", "1", "-vf", "scale=240:-2", "-f", "image2pipe", "-vcodec", "png", "-"], { maxBuffer: 64 * 1024 * 1024 }).stdout;
+      if (!raw?.length) break;
+      const label = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="240" height="26"><rect width="240" height="26" fill="black" fill-opacity="0.7"/><text x="8" y="18" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="white">${t.toFixed(3)} s</text></svg>`);
+      tiles.push(await sharp(raw).composite([{ input: label, top: 0, left: 0 }]).png().toBuffer());
+    }
+    if (!tiles.length) {
+      console.error(`${path.basename(file)}: no frames between ${start} and ${to} s`);
+      continue;
+    }
+    const { width, height } = await sharp(tiles[0]).metadata();
+    const cols = Math.min(8, tiles.length);
+    const out = path.join(OUT, `${path.parse(file).name}-${start}-${to}.jpg`);
+    await sharp({ create: { width: cols * (width + 4), height: Math.ceil(tiles.length / cols) * (height + 4), channels: 3, background: "#222" } })
+      .composite(tiles.map((input, i) => ({ input, left: (i % cols) * (width + 4), top: Math.floor(i / cols) * (height + 4) })))
+      .jpeg({ quality: 82 })
+      .toFile(out);
+    console.log(`${path.basename(file)}: ${tiles.length} frames, ${start}–${to} s every ${step} s → ${path.relative(ROOT, out)}`);
+  }
+  process.exit(0);
+}
 
 /** ffmpeg's stderr for `args` (ffmpeg exits non-zero for `-i` alone; that's expected). */
 function ffmpeg(args) {

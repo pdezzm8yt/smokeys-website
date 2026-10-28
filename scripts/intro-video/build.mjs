@@ -74,11 +74,13 @@ const OUTPUT_COLOUR = ["-colorspace", "bt709", "-color_primaries", "bt709", "-co
 
 /** The shared filter chain (before scaling): { chain, duration, w, h, fps }. */
 function baseChain(cut, src) {
+  const fps = Math.min(MAX_FPS, Math.round(src.fps) || 30);
   const start = Math.max(0, cut.trim?.start ?? 0);
-  const end = Math.min(cut.trim?.end ?? src.duration, src.duration);
+  // The film never shows anything after `rest`: unless trim.end says otherwise, end just after it (a smaller download).
+  const end = Math.min(cut.trim?.end ?? start + cut.beats.rest + 2 / fps, src.duration);
+  if (cut.trim?.end === undefined) console.log(`  ${cut.file}: ends at ${end.toFixed(2)} s, just after beats.rest (set trim.end to change)`);
   const duration = end - start;
   if (!(duration > 1)) throw new Error(`${cut.file}: trim leaves ${duration.toFixed(2)} s of video`);
-  const fps = Math.min(MAX_FPS, Math.round(src.fps) || 30);
   let w = src.w;
   let h = src.h;
   // Constant frame rate (phone footage is often variable): exact seeks.
@@ -101,14 +103,19 @@ function baseChain(cut, src) {
   return { chain: steps.join(","), duration, w, h, fps };
 }
 
-/** Check the beats are in order and inside the processed cut. */
-function checkBeats(cut, duration) {
+/** Check the beats are in order and each has a frame at or after it (the last frame starts one frame before the end). */
+function checkBeats(cut, duration, fps) {
   const order = ["tunnel", "swallowed", "cover", "headlights", "rest"];
+  const lastFrame = duration - 1 / fps;
   let prev = 0;
   for (const name of order) {
     const t = cut.beats[name];
-    if (!(t > prev) || t > duration) {
-      throw new Error(`${cut.file}: beats.${name} = ${t} must come after the previous beat and within the cut (${duration.toFixed(2)} s)`);
+    if (!(t > prev) || t > lastFrame) {
+      const minEnd = (cut.trim?.start ?? 0) + t + 1 / fps;
+      throw new Error(
+        `${cut.file}: beats.${name} = ${t} must come after the previous beat and before the cut's last frame (${lastFrame.toFixed(3)} s; ` +
+          `the cut ends at ${duration.toFixed(3)} s, so trim.end would need to be at least ${minEnd.toFixed(3)}). Beats are seconds after trim.start.`,
+      );
     }
     prev = t;
   }
@@ -124,30 +131,20 @@ async function buildCut(name, cut) {
   if (src.hevcAlpha || src.alpha) throw new Error(`${cut.file}: the film must be opaque footage (this master has transparency).`);
   const input = ["-i", master];
   const base = baseChain(cut, src);
-  checkBeats(cut, base.duration);
+  checkBeats(cut, base.duration, base.fps);
   const full = fit(base.w, base.h, FULL_MAX);
   const small = fit(base.w, base.h, SMALL_MAX);
-  const seekable = ["-g", String(GOP), "-keyint_min", String(GOP), "-sc_threshold", "0", "-bf", "0"];
+  // A keyframe every GOP frames, no B-frames; 3 reference frames is all a 4-frame GOP can use, and keeps
+  // 1920x1080/1080x1920 at H.264 Level 4.0 (what the page checks support for: avc1.640028).
+  const seekable = ["-g", String(GOP), "-keyint_min", String(GOP), "-sc_threshold", "0", "-bf", "0", "-refs", "3"];
   const tmp = path.join(SCRATCH, cut.file);
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
   const out = (suffix) => path.join(tmp, `${cut.file}${suffix}`);
   const graph = (scale, format = "yuv420p") => `[0:v]${base.chain},scale=${scale.w}:${scale.h}:flags=lanczos,format=${format}[v]`;
 
-  // H.264: plays everywhere with hardware decoding (the smoothest scrubbing).
-  ffmpeg([...input, "-filter_complex", graph(full), "-map", "[v]", "-an",
-    "-c:v", "libx264", "-preset", "slow", "-crf", "23", "-profile:v", "high", "-pix_fmt", "yuv420p", ...seekable,
-    ...OUTPUT_COLOUR, "-movflags", "+faststart", out(".mp4")]);
-  // VP9: for Chromium builds without H.264.
-  ffmpeg([...input, "-filter_complex", graph(full), "-map", "[v]", "-an",
-    "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-g", String(GOP), "-auto-alt-ref", "0",
-    ...OUTPUT_COLOUR, out(".webm")]);
-  // Phones: smaller and lighter.
-  ffmpeg([...input, "-filter_complex", graph(small), "-map", "[v]", "-an",
-    "-c:v", "libx264", "-preset", "slow", "-crf", "24", "-profile:v", "high", "-pix_fmt", "yuv420p", ...seekable,
-    ...OUTPUT_COLOUR, "-movflags", "+faststart", out("-small.mp4")]);
-
-  // Stills and glows: frames picked by time in the processed cut.
+  // Stills and glows first (seconds, not minutes): a beat with no frame fails before the long encodes.
+  // Frames are picked by time in the processed cut.
   const times = frameTimes(cut.beats);
   const frame = (t, label) => {
     const png = path.join(tmp, `${label}.png`);
@@ -171,6 +168,19 @@ async function buildCut(name, cut) {
     await sharp(down).resize(glowSize.w, glowSize.h, { fit: "fill", kernel: "cubic" }).blur(6).modulate({ brightness: 0.42, saturation: 1 }).webp({ quality: 70 }).toFile(out(`-glow-${glow}.webp`));
     glows[glow] = `${cut.file}-glow-${glow}.webp`;
   }
+
+  // H.264: plays everywhere with hardware decoding (the smoothest scrubbing).
+  ffmpeg([...input, "-filter_complex", graph(full), "-map", "[v]", "-an",
+    "-c:v", "libx264", "-preset", "slow", "-crf", "23", "-profile:v", "high", "-pix_fmt", "yuv420p", ...seekable,
+    ...OUTPUT_COLOUR, "-movflags", "+faststart", out(".mp4")]);
+  // VP9: for browsers that can't play the H.264 file.
+  ffmpeg([...input, "-filter_complex", graph(full), "-map", "[v]", "-an",
+    "-c:v", "libvpx-vp9", "-crf", "34", "-b:v", "0", "-row-mt", "1", "-deadline", "good", "-cpu-used", "2", "-g", String(GOP), "-auto-alt-ref", "0",
+    ...OUTPUT_COLOUR, out(".webm")]);
+  // Phones: smaller and lighter.
+  ffmpeg([...input, "-filter_complex", graph(small), "-map", "[v]", "-an",
+    "-c:v", "libx264", "-preset", "slow", "-crf", "24", "-profile:v", "high", "-pix_fmt", "yuv420p", ...seekable,
+    ...OUTPUT_COLOUR, "-movflags", "+faststart", out("-small.mp4")]);
 
   const main = probe(out(".mp4"));
   const files = { mp4: `${cut.file}.mp4`, webm: `${cut.file}.webm`, small: `${cut.file}-small.mp4` };

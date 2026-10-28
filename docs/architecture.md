@@ -28,7 +28,7 @@ Reduced motion / Save-Data / a film that can't load = crossfaded stills on a sho
 
 ## Budgets
 Mobile p75: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1.
-Initial JS measured 2026-09-30: ~242 KB gzip (React + Next runtime ≈ 150 KB, Motion + app ≈ 90 KB); GSAP + the intro engine (~30 KB gzip) are a separate chunk loaded in parallel with the intro preload, never for returning visitors until Replay. The original 100 KB target is below the Next.js 16 baseline; revised target ≤ 200 KB, work item for phase 4 (e.g. `motion/react-mini` for the intro, split below-fold widgets). LCP element is the intro wordmark/text, so the static HTML paints before JS.
+Initial JS measured 2026-09-30: ~242 KB gzip (React + Next runtime ≈ 150 KB, Motion + app ≈ 90 KB); GSAP + the intro engine (~30 KB gzip) are a separate chunk loaded on demand, in parallel with the film download, on every homepage visit (never for no-JS visitors; there is no returning-visitor shortcut or Replay yet). The original 100 KB target is below the Next.js 16 baseline; revised target ≤ 200 KB, work item for phase 4 (e.g. `motion/react-mini` for the intro, split below-fold widgets). LCP is unmeasured since the one-film intro: the branded loader covers the opening still until the engine code, the still and the fonts are in (see docs/audit.md).
 
 ## Assets needed from owner
 Intro film re-rendered with the real bus, portrait 9:16 AND wide 16:9 (same story beats) · final mascot art (SVG/Lottie) · bus photos lights-off AND lights-on from the same tripod position · interior photos/video · logo SVG · brand colors/fonts · real specs, packages, contact details, service area, FAQ answers.

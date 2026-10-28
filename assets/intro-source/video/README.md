@@ -32,18 +32,20 @@ scrolled, and the build warns above ~7 MB (desktop) / ~3.5 MB (phones).
 1. Drop the master here with the name above.
 2. Check it: `npm run video:inspect -- assets/intro-source/video/film-wide.mp4`
    (resolution, duration, frame rate, cuts, black or frozen stretches, and a
-   contact sheet in `.cache/intro-video/`).
-3. Set that cut's entry in `src/content/intro-video.ts`, read off the contact
-   sheet (seconds into the film):
+   contact sheet in `.cache/intro-video/`). Then zoom in on each moment with a
+   fine strip, e.g. `npm run video:inspect -- assets/intro-source/video/film-wide.mp4 --from=7 --to=9 --step=0.125`
+   (one labelled frame every 0.125 s).
+3. Set that cut's entry in `src/content/intro-video.ts`, read off the strips
+   (seconds after `trim.start`: subtract it if you set one):
    - `beats.tunnel`: he runs into the tunnel;
    - `beats.swallowed`: the dust has swallowed him (nothing of him left);
    - `beats.cover`: the thickest dust, nothing visible at all;
    - `beats.headlights`: the bus's headlights cut through;
    - `beats.rest`: the bus fully in view: the film stops here, under the
      headline and the buttons (pick a frame with the top third fairly calm);
-   - `trim.end`: just after `rest`; `crop` / `mirror` / `focus` / `minVisible`
-     if needed.
+   - `crop` / `mirror` / `focus` / `minVisible` if needed. The build ends the
+     film just after `rest` unless you set `trim.end`.
 4. `npm run video:build` (or `-- --only=wide`): writes the web versions to
    `public/video/intro/` and updates `src/content/intro-video.generated.json`.
-5. Once a cut shows Smokey's real bus, set `introFilm.placeholder` to `false`
-   (the "Placeholder footage" tag goes away).
+5. Once EVERY built cut shows Smokey's real bus, set `introFilm.placeholder`
+   to `false` (the "Placeholder footage" tag goes away: it covers both cuts).

@@ -204,7 +204,7 @@ html[data-intro-still] .intro-scroll {
  * The finished hero, without the scroll story: no JavaScript (see <noscript> in
  * the layout), the engine failed to load, or Skip before it was ready.
  */
-html[data-intro-final] :is([data-still="rest"], [data-glow="rest"], [data-copy-scrim]) {
+html[data-intro-final] :is([data-still="rest"], [data-glow="rest"], [data-copy-scrim], [data-stage-fade]) {
   opacity: 1;
 }
 html[data-intro-final] [data-bus-copy] {
@@ -227,6 +227,7 @@ html[data-intro-failed] .intro-scroll {
 html[data-intro-loading] [data-intro-loader] {
   opacity: 1;
   visibility: visible;
+  transition: none; /* appears at once (a client-side visit raises it after paint); only lifting it fades */
 }
 html[data-intro-loading] [data-intro-hint="scroll"] {
   visibility: hidden;
