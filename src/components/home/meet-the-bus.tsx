@@ -170,7 +170,9 @@ export function MeetTheBus() {
               </m.div>
             </AnimatePresence>
           </div>
-          {current.media.placeholder && <SampleTag label="Illustration · real photos coming" className="absolute top-3 right-3" />}
+          {current.media.placeholder && (
+            <SampleTag label={current.media.src ? "Sample photo · confirm before launch" : "Illustration · real photos coming"} className="absolute top-3 right-3" />
+          )}
         </div>
       </div>
 

@@ -6,3 +6,5 @@ node_modules/
 # Secrets and local Vercel link state: never upload.
 .env*
 .vercel/
+# Intro film masters (big, git-ignored): never uploaded with a CLI deploy.
+assets/intro-source/video/

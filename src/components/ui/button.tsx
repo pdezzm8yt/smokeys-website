@@ -38,10 +38,10 @@ type ButtonLinkProps = Omit<ComponentProps<"a">, "href"> & {
   size?: Size;
 };
 
-/** A link styled as a button. Hash links stay plain anchors; routes use next/link. */
+/** A link styled as a button. Section links ("#…", "/#…") stay plain anchors (the browser scrolls); routes use next/link. */
 export function ButtonLink({ href, variant, size, className, ...props }: ButtonLinkProps) {
   const classes = buttonClasses({ variant, size, className });
-  if (href.startsWith("#") || href.startsWith("tel:") || href.startsWith("mailto:")) {
+  if (href.startsWith("#") || href.startsWith("/#") || href.startsWith("tel:") || href.startsWith("mailto:")) {
     return <a href={href} className={classes} {...props} />;
   }
   return <Link href={href} className={classes} {...props} />;

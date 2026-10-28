@@ -1,4 +1,7 @@
-// TODO(owner): confirm every answer — policies differ by city and state.
+// TODO(owner): confirm every answer (policies differ by city and state), then set faqsSample to false.
+/** None of these answers has been confirmed by the owner yet: the page tags them. */
+export const faqsSample = true;
+
 export const faqs = [
   {
     q: "How many people fit on the bus?",

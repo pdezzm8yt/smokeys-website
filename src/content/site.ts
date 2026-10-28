@@ -19,15 +19,16 @@ export const site = {
 } as const;
 
 /**
- * Primary navigation. Anchors point at homepage sections for now; each will
- * switch to its own route (/party-bus, /packages, …) when that page is built.
+ * Primary navigation. Homepage sections for now ("/#…", so they also work
+ * from any other route, like the 404 page); each will switch to its own route
+ * (/party-bus, /packages, …) when that page is built.
  */
 export const nav = [
-  { label: "The Bus", href: "#bus" },
-  { label: "Events", href: "#events" },
-  { label: "Packages", href: "#packages" },
-  { label: "Gallery", href: "#gallery" },
-  { label: "FAQ", href: "#faq" },
+  { label: "The Bus", href: "/#bus" },
+  { label: "Events", href: "/#events" },
+  { label: "Packages", href: "/#packages" },
+  { label: "Gallery", href: "/#gallery" },
+  { label: "FAQ", href: "/#faq" },
 ] as const;
 
-export const quoteHref = "#quote";
+export const quoteHref = "/#quote";

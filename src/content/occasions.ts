@@ -3,6 +3,10 @@ export type OccasionIcon =
 
 export type Occasion = { slug: string; title: string; blurb: string; icon: OccasionIcon };
 
+// TODO(owner): confirm which events and services you offer (and on what terms), then set occasionsSample to false.
+/** The list hasn't been confirmed by the owner yet: the page tags it. */
+export const occasionsSample = true;
+
 export const occasions: Occasion[] = [
   { slug: "birthdays", title: "Birthdays", blurb: "Turn the ride into the party. Door-to-door, no designated driver needed.", icon: "cake" },
   { slug: "prom", title: "Prom", blurb: "Arrive together, photos ready, with a parent-friendly itinerary.", icon: "crown" },
