@@ -25,6 +25,7 @@ export const site = {
  */
 export const nav = [
   { label: "The Bus", href: "/#bus" },
+  { label: "Day & Night", href: "/#day-night" },
   { label: "Events", href: "/#events" },
   { label: "Packages", href: "/#packages" },
   { label: "Gallery", href: "/#gallery" },

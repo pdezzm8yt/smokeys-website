@@ -4,32 +4,81 @@
 @custom-variant short (@media (max-height: 30rem) and (orientation: landscape));
 
 /*
- * Smokey's design tokens.
- * Brand colors are PROVISIONAL until the real brand palette arrives —
- * swap the values in :root and every component follows.
+ * Smokey's design tokens: black, gold and white over a living sky.
+ * Two themes, switched by the sky (html[data-sky], set before first paint and
+ * by src/components/sky): NIGHT (navy glass, near-white text; also the
+ * no-JS default) and DAY (white glass, deep navy text). Gold is the brand
+ * accent in both; --gold is the shade for gold TEXT (darker by day: 4.5:1 on
+ * white glass). Brand colours are PROVISIONAL until the real palette arrives.
  */
 :root {
+  /* The sky (src/components/sky drives these; these are its night values before it starts). */
+  --sky-top: #040a26;
+  --sky-mid: #0a1a45;
+  --sky-horizon: #16305e;
+  --sky-light: #9fb6ff;
+  --night: 1;
+  /* The page colour under the sky (html): its horizon, so overscroll and the film's fade match it. */
+  --background: var(--sky-horizon);
+  --header-h: 4rem;
+}
+
+/* The night theme: the default, and always on what sits over the intro film or a lightbox (.theme-night). */
+:root,
+.theme-night {
   color-scheme: dark;
+  --foreground: oklch(0.97 0.008 255);
+  /* Glass panels the content sits on (and their stronger, denser variant). */
+  --surface: oklch(0.2 0.05 263 / 0.66);
+  --surface-raised: oklch(0.17 0.05 263 / 0.88);
+  --muted: oklch(1 0 0 / 0.07);
+  --muted-foreground: oklch(0.83 0.03 255);
+  --border: oklch(1 0 0 / 0.14);
+  --input: oklch(1 0 0 / 0.38);
 
-  --background: oklch(0.13 0.006 285);
-  --foreground: oklch(0.97 0.004 285);
-  --surface: oklch(0.17 0.008 285);
-  --surface-raised: oklch(0.215 0.01 285);
-  --muted: oklch(0.24 0.01 285);
-  --muted-foreground: oklch(0.74 0.012 285);
-  --border: oklch(0.29 0.012 285);
-  --input: oklch(0.5 0.012 285);
+  /* Gold: fills (buttons, badges) and text/icons on panels. Ink: the black of black-and-gold. */
+  --primary: oklch(0.83 0.12 84);
+  --primary-foreground: oklch(0.17 0.02 80);
+  --gold: oklch(0.86 0.11 84);
+  --accent: oklch(0.93 0.06 90);
+  --ink: oklch(0.15 0.01 265);
 
-  /* Headlight amber: the primary action color */
-  --primary: oklch(0.8 0.155 70);
-  --primary-foreground: oklch(0.16 0.02 60);
-  /* Party-light neons: accents only, never body text on dark surfaces below 4.5:1 */
+  /* Party-light neons: only in the party illustrations (gallery/hotspot art), never UI. */
   --neon-pink: oklch(0.7 0.24 350);
   --neon-violet: oklch(0.66 0.22 295);
   --neon-cyan: oklch(0.84 0.13 205);
 
-  --ring: oklch(0.84 0.15 75);
-  --header-h: 4rem;
+  --ring: oklch(0.86 0.12 84);
+}
+
+.theme-night {
+  color: var(--foreground);
+}
+
+:root[data-sky="day"] {
+  --sky-top: #2f74d0;
+  --sky-mid: #62a0e6;
+  --sky-horizon: #b8daf6;
+  --sky-light: #fff6df;
+  --night: 0;
+}
+
+/* The day theme: white glass, deep navy text (not over the film or a lightbox: those keep .theme-night). */
+:root[data-sky="day"]:not(.theme-night) {
+  color-scheme: light;
+  --foreground: oklch(0.21 0.04 264);
+  --surface: oklch(1 0 0 / 0.74);
+  --surface-raised: oklch(1 0 0 / 0.92);
+  --muted: oklch(0.3 0.05 264 / 0.06);
+  --muted-foreground: oklch(0.43 0.04 264);
+  --border: oklch(0.3 0.05 264 / 0.14);
+  --input: oklch(0.3 0.05 264 / 0.42);
+
+  --primary: oklch(0.78 0.13 80);
+  --gold: oklch(0.5 0.1 72);
+  --accent: oklch(0.7 0.12 78);
+
+  --ring: oklch(0.52 0.12 74);
 }
 
 @theme inline {
@@ -43,6 +92,9 @@
   --color-input: var(--input);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-gold: var(--gold);
+  --color-accent: var(--accent);
+  --color-ink: var(--ink);
   --color-neon-pink: var(--neon-pink);
   --color-neon-violet: var(--neon-violet);
   --color-neon-cyan: var(--neon-cyan);
@@ -115,7 +167,140 @@
     outline-offset: 3px;
   }
   ::selection {
-    background: color-mix(in oklch, var(--neon-pink) 45%, transparent);
+    background: color-mix(in oklch, var(--primary) 45%, transparent);
+  }
+}
+
+/* The page's day ↔ night theme crossfades (a View Transition started by the sky: GPU-blended snapshots). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 700ms;
+  animation-timing-function: var(--ease-standard);
+}
+
+/*
+ * The living sky (src/components/sky): fixed behind every page. Its layers:
+ * the gradient, the stars (three twinkling groups), the sun and its rays, the
+ * moon, a shooting star, and the clouds (WebGL) in front of them all.
+ */
+.living-sky {
+  container-type: size; /* the sun and moon are placed in cqw/cqh: exactly the layer the clicks are measured on */
+}
+/* The gradient keyframes, stacked (day at the bottom): the engine crossfades them. Before it runs, and without JS, the right one shows. */
+.living-sky [data-sky-key]:not([data-sky-key="0"]) {
+  opacity: 0;
+}
+:root:not([data-sky="day"]) .living-sky [data-sky-key="3"] {
+  opacity: 1;
+}
+.living-sky [data-sky-stars] canvas {
+  animation: twinkle var(--twinkle, 5s) ease-in-out infinite alternate;
+}
+.living-sky [data-sky-stars] canvas:nth-child(2) {
+  --twinkle: 3.7s;
+  animation-delay: -1.3s;
+}
+.living-sky [data-sky-stars] canvas:nth-child(3) {
+  --twinkle: 6.4s;
+  animation-delay: -2.9s;
+}
+@keyframes twinkle {
+  from { opacity: 1; }
+  to { opacity: 0.45; }
+}
+/* The sun and the moon: placed by --x/--y (fractions of the screen), centred on that point. */
+.living-sky .sky-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  translate: calc(var(--x, 0.5) * 100cqw - 50%) calc(var(--y, 0.2) * 100cqh - 50%);
+}
+/* The sun: static layers only (white and warm versions crossfaded by opacity: nothing repaints as it sets). */
+.living-sky [data-sky-sun] {
+  width: clamp(4rem, 7vw, 6.5rem);
+  aspect-ratio: 1;
+}
+.living-sky .sun-disk {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fffef6 0 38%, #ffe9b0 55%, transparent 71%);
+}
+.living-sky .sun-disk-warm {
+  background: radial-gradient(circle, #fff3dc 0 32%, #ff9a4d 55%, transparent 71%);
+}
+.living-sky .sun-glow {
+  position: absolute;
+  inset: -260%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 236 180 / 0.55) 0, rgb(255 240 200 / 0.22) 16%, transparent 42%);
+}
+.living-sky .sun-glow-warm {
+  background: radial-gradient(circle, rgb(255 150 70 / 0.6) 0, rgb(255 120 60 / 0.26) 18%, transparent 46%);
+}
+.living-sky [data-sky-rays] {
+  position: absolute;
+  inset: -380%;
+  border-radius: 50%;
+  /* Soft, uneven shafts of light (not a starburst): few, wide, faint, blurred. */
+  background: conic-gradient(from 8deg, rgb(255 246 220 / 0.16) 0deg 9deg, transparent 9deg 31deg, rgb(255 246 220 / 0.1) 31deg 44deg, transparent 44deg 77deg, rgb(255 246 220 / 0.14) 77deg 83deg, transparent 83deg 118deg, rgb(255 246 220 / 0.09) 118deg 136deg, transparent 136deg 171deg, rgb(255 246 220 / 0.15) 171deg 178deg, transparent 178deg 214deg, rgb(255 246 220 / 0.1) 214deg 229deg, transparent 229deg 262deg, rgb(255 246 220 / 0.13) 262deg 270deg, transparent 270deg 305deg, rgb(255 246 220 / 0.09) 305deg 322deg, transparent 322deg 360deg);
+  mask-image: radial-gradient(circle, #000 3%, rgb(0 0 0 / 0.45) 18%, transparent 52%);
+  filter: blur(7px);
+  animation: rays 90s linear infinite;
+}
+@keyframes rays {
+  to { rotate: 360deg; }
+}
+.living-sky [data-sky-moon] {
+  width: clamp(3.25rem, 5.5vw, 5.25rem);
+  aspect-ratio: 1;
+}
+.living-sky .moon-glow {
+  position: absolute;
+  inset: -110%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(205 218 255 / 0.4) 0, rgb(205 218 255 / 0.12) 30%, transparent 55%);
+}
+.living-sky [data-sky-moon] canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.living-sky [data-sky-shooting] {
+  position: absolute;
+  top: -1px;
+  left: -10rem;
+  width: 10rem;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to right, transparent, rgb(220 230 255 / 0.4) 60%, #fff);
+  box-shadow: 0 0 8px 1px rgb(220 230 255 / 0.6);
+  transform-origin: 100% 50%;
+  opacity: 0;
+}
+/* Nothing animates while the sky is covered (the intro film) or the visitor prefers less motion. */
+.living-sky[data-paused] *,
+html[data-sky-still] .living-sky * {
+  animation-play-state: paused !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .living-sky * {
+    animation: none !important;
+  }
+}
+
+/*
+ * Glass: the panels the content sits on, readable over any sky. Frosted on
+ * large screens with a fine pointer; on phones a denser tint instead (no
+ * live blur over an animated sky: it costs battery).
+ */
+@utility glass {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: 0 30px 80px -42px rgb(0 0 0 / 0.55);
+  @media (min-width: 64rem) and (pointer: fine) {
+    background: var(--surface);
+    backdrop-filter: blur(18px) saturate(1.35);
   }
 }
 

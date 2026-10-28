@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { PeriodControl } from "@/components/sky/period-control";
 import { SampleTag } from "@/components/ui/sample-tag";
 import { nav, quoteHref, site } from "@/content/site";
 import { Logo } from "./logo";
@@ -35,7 +36,7 @@ export function SiteHeader() {
       data-site-header
       className={cn(
         "fixed inset-x-0 top-0 z-40 h-(--header-h) transition-[background-color,border-color,backdrop-filter] duration-300",
-        scrolled ? "border-b border-white/8 bg-background/75 backdrop-blur-xl" : "border-b border-transparent",
+        scrolled ? "border-b border-border bg-surface-raised backdrop-blur-xl" : "border-b border-transparent",
       )}
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
@@ -62,14 +63,16 @@ export function SiteHeader() {
           </ul>
         </nav>
 
-        <a href={quoteHref} className={buttonClasses({ className: "ms-auto max-sm:h-10 max-sm:px-4 lg:ms-0" })}>
+        {/* Day or night: the same choice as clicking the sun or the moon in the sky. */}
+        <PeriodControl variant="compact" className="ms-auto max-sm:hidden lg:ms-0" />
+        <a href={quoteHref} className={buttonClasses({ className: "max-sm:ms-auto max-sm:h-10 max-sm:px-4" })}>
           Get a Quote
         </a>
         <button
           type="button"
           onClick={openMenu}
           aria-haspopup="dialog"
-          className="-me-2 grid size-11 place-items-center rounded-full text-foreground transition-colors hover:bg-white/8 lg:hidden"
+          className="-me-2 grid size-11 place-items-center rounded-full text-foreground transition-colors hover:bg-muted lg:hidden"
         >
           <Menu aria-hidden="true" className="size-6" />
           <span className="sr-only">Open menu</span>
@@ -84,7 +87,7 @@ export function SiteHeader() {
           if (e.target === e.currentTarget) closeMenu(); // backdrop click
         }}
         className={cn(
-          "fixed inset-y-0 ms-auto me-0 h-dvh max-h-dvh w-[min(22rem,88vw)] bg-surface p-0 text-foreground shadow-2xl ring-1 ring-white/10",
+          "fixed inset-y-0 ms-auto me-0 h-dvh max-h-dvh w-[min(22rem,88vw)] bg-surface-raised p-0 text-foreground shadow-2xl ring-1 ring-border backdrop-blur-xl",
           "translate-x-full opacity-0 transition-[translate,opacity,display,overlay] transition-discrete duration-300 ease-enter",
           "open:translate-x-0 open:opacity-100 starting:open:translate-x-full starting:open:opacity-0",
           "backdrop:bg-black/0 backdrop:backdrop-blur-none backdrop:transition-all backdrop:transition-discrete backdrop:duration-300",
@@ -98,7 +101,7 @@ export function SiteHeader() {
             <button
               type="button"
               onClick={closeMenu}
-              className="-me-2 grid size-11 place-items-center rounded-full transition-colors hover:bg-white/8"
+              className="-me-2 grid size-11 place-items-center rounded-full transition-colors hover:bg-muted"
             >
               <X aria-hidden="true" className="size-6" />
               <span className="sr-only">Close menu</span>
@@ -111,7 +114,7 @@ export function SiteHeader() {
                   <a
                     href={item.href}
                     onClick={closeMenu}
-                    className="group flex items-center justify-between border-b border-white/8 py-4 font-display text-2xl font-bold transition-colors hover:text-primary"
+                    className="group flex items-center justify-between border-b border-border py-4 font-display text-2xl font-bold transition-colors hover:text-gold"
                   >
                     {item.label}
                     <span aria-hidden="true" className="text-xs font-medium text-muted-foreground tabular-nums">
@@ -122,6 +125,10 @@ export function SiteHeader() {
               ))}
             </ul>
           </nav>
+          <div className="mt-8 flex items-center justify-between gap-4">
+            <span className="text-sm font-semibold">Day or night ride</span>
+            <PeriodControl variant="compact" />
+          </div>
           <a href={quoteHref} onClick={closeMenu} className={buttonClasses({ size: "lg", className: "mt-auto w-full" })}>
             Get a Quote
           </a>

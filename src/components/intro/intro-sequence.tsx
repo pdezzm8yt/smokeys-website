@@ -217,7 +217,7 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
         as the LARGE viewport (the film still fills the screen once a phone's toolbar hides); the
         film and controls are placed within the small viewport (never under the toolbar).
       */}
-      <div ref={stageRef} className="intro-stage sticky top-0 isolate h-lvh w-full overflow-hidden bg-black">
+      <div ref={stageRef} className="intro-stage theme-night sticky top-0 isolate h-lvh w-full overflow-hidden bg-black">
         {/* Measures the small viewport for the engine (the frame the film is placed in). */}
         <div data-frame aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 h-svh" />
         <div aria-hidden="true" className="absolute inset-0">
