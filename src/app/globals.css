@@ -299,9 +299,8 @@
 .living-sky:not([data-starry]) [data-sky-stars] canvas {
   animation: none;
 }
-/* Nothing animates while the sky is covered (the intro film) or the visitor prefers less motion. */
-.living-sky[data-paused] *,
-html[data-sky-still] .living-sky * {
+/* Nothing animates while the intro film covers the sky, or (below) when the visitor prefers less motion. */
+.living-sky[data-paused] * {
   animation-play-state: paused !important;
 }
 @media (prefers-reduced-motion: reduce) {

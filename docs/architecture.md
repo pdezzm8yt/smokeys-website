@@ -4,7 +4,7 @@
 
 | Decision | Choice |
 |---|---|
-| Framework | Next.js 16.3 App Router, static rendering; bump to 16.3.8 security release when published |
+| Framework | Next.js 16.4 App Router, static rendering (16.4.3: the critical security release, PR #6; see docs/audit.md C1) |
 | Styling / motion | Tailwind 4 tokens; GSAP 3 + ScrollTrigger for the scroll-driven intro (loaded on demand); Motion 13 for interactive widgets |
 | Content | Typed TS files in `src/content` (CMS later if needed) |
 | Backend (phase 2) | Supabase Postgres `quote_requests` (RLS on, no public policies, server-only writes) + Resend |
