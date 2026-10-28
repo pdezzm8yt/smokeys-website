@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],
-    // 85 is used for the intro cutouts, where compression artefacts would show on the edges.
+    // 85 is used for the bus photos (the exterior is a cutout, where compression artefacts would show on the edges).
     qualities: [75, 85],
   },
   async headers() {
