@@ -7,7 +7,7 @@ import { OccasionsRail } from "@/components/home/occasions-rail";
 import { PackagesGrid } from "@/components/home/packages-grid";
 import { QuoteCta } from "@/components/home/quote-cta";
 import { IntroSequence } from "@/components/intro/intro-sequence";
-import { DustLayer, SceneBus, SceneCartoon, SceneReal } from "@/components/intro/scenes";
+import { FilmLayer, IntroCopy } from "@/components/intro/intro-layers";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { busFacts } from "@/content/bus";
 import { faqs } from "@/content/faq";
@@ -18,7 +18,7 @@ import { packages } from "@/content/packages";
 export default function HomePage() {
   return (
     <>
-      <IntroSequence real={<SceneReal />} cartoon={<SceneCartoon />} bus={<SceneBus />} dust={<DustLayer />} exploreHref="#bus" />
+      <IntroSequence film={<FilmLayer />} copy={<IntroCopy />} exploreHref="#bus" />
 
       <main id="main" tabIndex={-1} className="outline-none">
         <BusStats facts={busFacts} />

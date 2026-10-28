@@ -1,44 +1,51 @@
-# Intro video masters
+# Intro film masters
 
-Put the intro's final footage here. Masters stay on your machine (they're
+Put the intro film's masters here. Masters stay on your machine (they're
 git-ignored: big files, and the repo is public). Only the web versions built
 from them are committed, in `public/video/intro/`.
 
-| Scene | Master file name | What it should be |
+The intro is ONE continuous shot, scrubbed by the scroll: the roadrunner runs
+into a tunnel, the dust swallows him, the black party bus drives out of it and
+comes into full view. It comes in two cuts of the same story:
+
+| Cut | Master file name | Used on |
 |---|---|---|
-| 1 | `real-roadrunner.<ext>` | Real roadrunner running side-on, 3–6 s, loops (the intro loops it until the visitor scrolls on) |
-| 2 | `cartoon-roadrunner.<ext>` | Cartoon roadrunner running through the desert, 3–6 s, loops. Or the runner alone on transparent / green: set `blend: "alpha"` (or `chromaKey`) and it runs over the built-in parallax desert |
-| — | `dust-transition.<ext>` | A dust burst that builds to FULL cover, then thins out, 3–5 s, on **black** (or transparent). It follows the scroll frame by frame |
-| 3 | `party-bus.<ext>` | The black party bus driving in and coming to rest, 3–6 s, ending at rest. It follows the scroll (reversible) and has stopped when SMOKEY'S appears |
+| portrait | `film-portrait.<ext>` | Phones and other tall screens. 9:16, 1080×1920 or larger |
+| wide | `film-wide.<ext>` | Desktops, tablets on their side, phones in landscape. 16:9, 1920×1080 or larger |
 
-`<ext>`: `mov`, `mp4`, `m4v`, `webm` or `mkv`. Any codec ffmpeg reads (ProRes, H.264, HEVC…).
-Transparent masters: ProRes 4444 `.mov` or VP9-alpha `.webm` (Apple's HEVC-with-alpha
-can't be decoded by ffmpeg: re-export it). Green or blue screen: set `chromaKey`
-together with `blend: "alpha"`. iPhone HDR footage is converted to standard
-(Rec.709) colour automatically; variable frame rates are made constant.
+Each screen gets the cut closest to its shape. While a cut has no master, the
+other one stands in (a desktop then shows the portrait film as a strip in the
+middle, over a soft glow of the same scene).
 
-**Best results:** landscape, 1920×1080 or larger (4K is fine), 30–60 fps, no
-text or watermarks, every clip running the same way (left → right; `mirror`
-can flip one), subjects on a similar ground line. Keep clips short: every clip
-is downloaded completely before the intro can be scrolled, and the build warns
-above ~4.5 MB (desktop) / ~1.5 MB (phone) per clip. The dust and bus are
-scrubbed with the scroll, so they're encoded at ≤30 fps for instant seeking.
+`<ext>`: `mov`, `mp4`, `m4v`, `webm` or `mkv`. Any codec ffmpeg reads (ProRes,
+H.264, HEVC…). iPhone HDR footage is converted to standard (Rec.709) colour
+automatically; variable frame rates are made constant. Audio is dropped.
+
+**Best results:** the same story beats in both cuts; the bus is Smokey's own
+(make it from photos of the real bus); about 10–14 s up to the moment the bus
+is fully in view (the build trims everything after that); 24–30 fps; no text
+or watermarks. The film downloads completely before the intro can be
+scrolled, and the build warns above ~7 MB (desktop) / ~3.5 MB (phones).
 
 ## Steps
 
 1. Drop the master here with the name above.
-2. Check it: `npm run video:inspect -- assets/intro-source/video/party-bus.mov`
-   (resolution, duration, frame rate, transparency, background, cuts, a contact
-   sheet in `.cache/intro-video/`).
-3. Tune its entry in `src/content/intro-video.ts`: `trim`, `crop` (measured on
-   the master as you see it, applied before `mirror`), `mirror`,
-   `focus` (what to keep in view on other screen shapes), `minVisible`,
-   `subject` (where it stands: this lines the scenes up), `poster`, and for
-   the dust `introClipTiming.dustPeakAt` (the second it covers the most).
-4. `npm run video:build` (or `-- --only=bus`): writes every web version to
-   `public/video/intro/`, updates `src/content/intro-video.generated.json`
-   and marks that clip as final (its "placeholder" label disappears).
-
-Until a master exists, the build uses a generated, clearly labelled
-placeholder (`npm run video:placeholders` renders them from the images in
-`src/assets/intro`).
+2. Check it: `npm run video:inspect -- assets/intro-source/video/film-wide.mp4`
+   (resolution, duration, frame rate, cuts, black or frozen stretches, and a
+   contact sheet in `.cache/intro-video/`). Then zoom in on each moment with a
+   fine strip, e.g. `npm run video:inspect -- assets/intro-source/video/film-wide.mp4 --from=7 --to=9 --step=0.125`
+   (one labelled frame every 0.125 s).
+3. Set that cut's entry in `src/content/intro-video.ts`, read off the strips
+   (seconds after `trim.start`: subtract it if you set one):
+   - `beats.tunnel`: he runs into the tunnel;
+   - `beats.swallowed`: the dust has swallowed him (nothing of him left);
+   - `beats.cover`: the thickest dust, nothing visible at all;
+   - `beats.headlights`: the bus's headlights cut through;
+   - `beats.rest`: the bus fully in view: the film stops here, under the
+     headline and the buttons (pick a frame with the top third fairly calm);
+   - `crop` / `mirror` / `focus` / `minVisible` if needed. The build ends the
+     film just after `rest` unless you set `trim.end`.
+4. `npm run video:build` (or `-- --only=wide`): writes the web versions to
+   `public/video/intro/` and updates `src/content/intro-video.generated.json`.
+5. Once EVERY built cut shows Smokey's real bus, set `introFilm.placeholder`
+   to `false` (the "Placeholder footage" tag goes away: it covers both cuts).

@@ -27,9 +27,6 @@
   --neon-pink: oklch(0.7 0.24 350);
   --neon-violet: oklch(0.66 0.22 295);
   --neon-cyan: oklch(0.84 0.13 205);
-  /* Desert tones used by the intro */
-  --dusk-sky: oklch(0.38 0.1 20);
-  --dusk-sun: oklch(0.83 0.16 65);
 
   --ring: oklch(0.84 0.15 75);
   --header-h: 4rem;
@@ -155,16 +152,22 @@ html[data-intro-still] .intro-scroll {
 }
 
 /*
- * One clip, framed for any screen (src/content/intro-video.ts sets --aspect,
- * --fx/--fy = focus, --min-visible): covers the frame (the small viewport)
- * like object-fit: cover, but never crops away more than 1 − min-visible of
- * its width, nor more than 1 − min-visible-y of its height (so feet and wheels
- * stay on screen from phones in landscape to 32:9 monitors). Past either limit
- * it becomes a band: JS marks it data-banded="y" (letterboxed) or "x"
- * (pillarboxed) and its edges feather into the scene's backdrop.
- * Never stretched: its box always has the clip's own ratio.
+ * The film, framed for any screen (src/content/intro-video.ts: each cut's
+ * aspect, focus --fx/--fy and minVisible): covers the frame (the small
+ * viewport) like object-fit: cover, but never crops away more than
+ * 1 − min-visible of its width, nor more than 1 − min-visible-y of its height.
+ * Past either limit it becomes a band: JS marks it data-banded="y"
+ * (letterboxed) or "x" (pillarboxed) and its edges feather into the glow
+ * behind it. Never stretched: its box always has the cut's own ratio.
+ * Tall screens frame the portrait cut, wide ones the wide cut (the same one
+ * while only one exists); once the intro runs it sets the cut it picked inline.
  */
-.intro-clip {
+.intro-film {
+  --aspect: var(--tall-aspect);
+  --fx: var(--tall-fx);
+  --fy: var(--tall-fy);
+  --min-visible: var(--tall-min-visible);
+  --min-visible-y: var(--tall-min-visible-y);
   --frame-h: min(100cqh, 100svh);
   --dw: min(
     max(100cqw, var(--frame-h) * var(--aspect)),
@@ -177,14 +180,23 @@ html[data-intro-still] .intro-scroll {
   left: calc((100cqw - var(--dw)) * var(--fx));
   top: calc((var(--frame-h) - var(--dw) / var(--aspect)) * var(--fy));
 }
-.intro-clip[data-banded="y"] {
+@media (min-aspect-ratio: 1/1) {
+  .intro-film {
+    --aspect: var(--wide-aspect);
+    --fx: var(--wide-fx);
+    --fy: var(--wide-fy);
+    --min-visible: var(--wide-min-visible);
+    --min-visible-y: var(--wide-min-visible-y);
+  }
+}
+.intro-film[data-banded="y"] {
   mask-image: linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
 }
-.intro-clip[data-banded="x"] {
+.intro-film[data-banded="x"] {
   mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
 }
-/* A video with no file yet (still mode, no JS, not loaded) must never cover its still frame. */
-.intro-clip video:not([src]) {
+/* Until the film is in memory and parked on its first frame, it never covers the stills. */
+.intro-film video:not([data-ready]) {
   visibility: hidden;
 }
 
@@ -192,35 +204,35 @@ html[data-intro-still] .intro-scroll {
  * The finished hero, without the scroll story: no JavaScript (see <noscript> in
  * the layout), the engine failed to load, or Skip before it was ready.
  */
-html[data-intro-final] [data-scene="real"],
-html[data-intro-final] [data-scene="cartoon"] {
-  opacity: 0;
-  visibility: hidden;
+html[data-intro-final] :is([data-still="rest"], [data-glow="rest"], [data-copy-scrim], [data-stage-fade]) {
+  opacity: 1;
 }
-html[data-intro-final] [data-scene="bus"],
 html[data-intro-final] [data-bus-copy] {
   opacity: 1;
   visibility: visible;
 }
-html[data-intro-final] [data-bus-shade] {
-  opacity: 0;
-}
-html[data-intro-final] [data-intro-hint="scroll"],
-html[data-intro-final] [data-intro-hint="skip"] {
+html[data-intro-final] :is([data-film], [data-caption], [data-intro-wordmark], [data-intro-hint="scroll"], [data-intro-hint="skip"]) {
   display: none;
 }
 html[data-intro-failed] .intro-scroll {
   height: 100lvh;
 }
 
-/* Intro loader: only when JS set data-intro-loading (first visit at the top), never for no-JS visitors. */
+/* Intro loader: only while JS (or the boot script) holds data-intro-loading, never for no-JS visitors. */
+[data-intro-loader] {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 450ms var(--ease-enter), visibility 450ms allow-discrete;
+}
 html[data-intro-loading] [data-intro-loader] {
-  display: flex;
+  opacity: 1;
+  visibility: visible;
+  transition: none; /* appears at once (a client-side visit raises it after paint); only lifting it fades */
 }
 html[data-intro-loading] [data-intro-hint="scroll"] {
   visibility: hidden;
 }
-/* Until every clip is in memory the scroll hint shows download progress instead. */
+/* Until the film is in memory the scroll hint shows its download progress instead. */
 html[data-intro-pending] [data-intro-hint="scroll"] [data-label],
 html:not([data-intro-pending]) [data-intro-hint="scroll"] [data-pending] {
   display: none;
@@ -230,8 +242,7 @@ html:not([data-intro-pending]) [data-intro-hint="scroll"] [data-pending] {
 [data-site-header] {
   transition: opacity 300ms var(--ease-enter), visibility 300ms allow-discrete;
 }
-html[data-intro-stage="real"] [data-site-header],
-html[data-intro-stage="cartoon"] [data-site-header] {
+html[data-intro-stage="film"] [data-site-header] {
   opacity: 0;
   visibility: hidden;
 }
@@ -259,11 +270,6 @@ html:has(dialog[open]) {
 
 @utility text-glow-amber {
   text-shadow: 0 0 24px color-mix(in oklch, var(--primary) 55%, transparent);
-}
-
-/* Feet-dust sprites are only fetched once the intro runs (never for no-JS visitors). */
-html:not([data-intro-armed]) [data-particle] {
-  background-image: none !important;
 }
 
 @utility bg-grain {

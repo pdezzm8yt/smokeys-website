@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { noScriptBandCss } from "@/components/intro/intro-film";
 import { Providers } from "@/components/providers";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -34,7 +35,7 @@ export const viewport: Viewport = {
 /**
  * Runs before first paint on the homepage. At the top, the intro's branded
  * loader shows (and the page holds still, so an early scroll can't run ahead
- * of the footage) until the footage is in memory, and the header stays out of
+ * of the film) until the intro's JS takes over, and the header stays out of
  * the way until the bus is revealed; a deep link (#bus…) starts with the header.
  * Failsafe: if the intro's JS hasn't taken over the loader within 12 s (it sets
  * data-intro-loading="js"), show the finished hero instead of a stuck loader.
@@ -45,10 +46,10 @@ export const viewport: Viewport = {
  * properties, and some names are the browser's own (`var top=…` is silently
  * ignored: window.top can't be replaced).
  */
-const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="bus"}else{d.dataset.introStage="real";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="bus";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="bus"}},{passive:true})}}}catch(e){}})()`;
+const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="end"}else{d.dataset.introStage="film";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="end";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="end"}},{passive:true})}}}catch(e){}})()`;
 
 /** No JavaScript: no scroll story, just the finished hero (the bus, SMOKEY'S and the CTAs). */
-const introNoScript = `.intro-scroll{height:100lvh}[data-scene="real"],[data-scene="cartoon"]{opacity:0;visibility:hidden}[data-scene="bus"],[data-bus-copy]{opacity:1;visibility:visible}[data-bus-shade]{opacity:0}[data-intro-hint],[data-clip]{display:none}`;
+const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim],[data-stage-fade]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-wordmark],[data-intro-hint]){display:none}${noScriptBandCss()}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

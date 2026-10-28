@@ -15,7 +15,6 @@
     "assets:intro": "node scripts/intro-assets/build.mjs",
     "perf:intro": "node scripts/perf/intro-perf.mjs",
     "video:inspect": "node scripts/intro-video/inspect.mjs",
-    "video:placeholders": "node scripts/intro-video/placeholders.mjs",
     "video:build": "node scripts/intro-video/build.mjs",
     "test:intro": "node scripts/perf/intro-flows.mjs"
   },

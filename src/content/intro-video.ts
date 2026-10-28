@@ -1,151 +1,111 @@
 /**
- * The intro's four video clips: the ONE place that says how each clip is
- * processed (scripts/intro-video/build.mjs reads this file) and how the intro
- * uses it (framing, where the subject stands, when it starts).
+ * The intro film: ONE continuous shot (the roadrunner runs into a tunnel, the
+ * dust swallows him, the black party bus drives out of it), scrubbed by the
+ * scroll. This is the ONE place that says how its masters are processed
+ * (scripts/intro-video/build.mjs reads this file) and how the intro uses them
+ * (story beats, framing).
+ *
+ * Two cuts of the same shot, each built from its own master:
+ *   - portrait (9:16): phones and other tall screens;
+ *   - wide (16:9): desktops, tablets on their side, phones in landscape.
+ * Each screen gets the cut closest to its shape. While a cut has no master,
+ * the other stands in (a wide screen shows the portrait cut as a feathered
+ * strip over a soft glow of the same scene).
  *
  * Replacing footage (see assets/intro-source/video/README.md):
- *   1. Put your master file in assets/intro-source/video/ named after `file`
- *      (e.g. real-roadrunner.mov). Any common format works.
- *   2. Adjust that clip's settings below (trim, mirror, subject…).
- *   3. `npm run video:build` → regenerates every web file in public/video/intro/
- *      and marks the clip as final (no more "placeholder" label).
- * Until a master exists, the build uses a generated, clearly labelled
- * placeholder (`npm run video:placeholders` renders them from the owner's images).
+ *   1. Put the master in assets/intro-source/video/ named after the cut's
+ *      `file` (e.g. film-wide.mp4). Any common format works.
+ *   2. Set that cut's `beats` (and trim/crop if needed), read off
+ *      `npm run video:inspect -- <master> --from=7 --to=9 --step=0.125` strips.
+ *   3. `npm run video:build` → regenerates its web files in public/video/intro/.
  *
- * All positions are fractions (0–1) of the PROCESSED frame (after trim,
- * mirror and crop). Keep this file free of imports: Node runs it directly.
+ * Times are seconds into the PROCESSED cut (after trim). Positions are
+ * fractions (0–1) of its frame. Keep this file free of imports: Node runs it.
  */
 
-export type ClipSlot = "real" | "cartoon" | "dust" | "bus";
+export type FilmCut = "portrait" | "wide";
 
-/**
- * How a clip is layered over what's behind it:
- * - "normal": opaque footage (fills its layer).
- * - "screen": footage on BLACK (dust, smoke, sparks): black drops out, light adds.
- * - "alpha": footage with a transparent background (WebM VP9 alpha for
- *   Chrome/Firefox/Edge, HEVC-with-alpha .mov for Safari; both are built).
- */
-export type ClipBlend = "normal" | "screen" | "alpha";
+/** Moments in the film the intro is built around (seconds into the processed cut, in this order). */
+export type FilmBeats = {
+  /** The roadrunner runs into the tunnel: the light starts to go. */
+  tunnel: number;
+  /** The dust has swallowed him: nothing of him is left. */
+  swallowed: number;
+  /** The thickest dust: nothing at all is visible (where the roadrunner becomes the bus). */
+  cover: number;
+  /** The bus's headlights cut through the dust. */
+  headlights: number;
+  /**
+   * Where the film comes to rest under the headline and the buttons: the bus
+   * fully in frame. Also the still of the finished hero (no JS, Skip, return visits).
+   */
+  rest: number;
+};
 
-export type IntroClipConfig = {
-  /** Base name: masters are assets/intro-source/video/<file>.*, web files public/video/intro/<file>*. */
+export type FilmCutConfig = {
+  /** Base name: the master is assets/intro-source/video/<file>.*, web files public/video/intro/<file>*. */
   file: string;
-  /** Human name (labels, docs). */
-  label: string;
-
-  // ── Processing (build.mjs) ─────────────────────────────────────────────
-  /** Use only this part of the master (seconds). */
+  /** Use only this part of the master (seconds). Without `end`, the build ends the film just after `rest` (a smaller download). */
   trim?: { start?: number; end?: number };
-  /** Flip horizontally so every clip runs the same way (left → right). */
-  mirror?: boolean;
   /** Keep only this region of the master as you see it (fractions of the frame), e.g. to drop a watermark. Applied before `mirror`. */
   crop?: { x: number; y: number; w: number; h: number };
-  /** Seamless loop: crossfade the clip's end into its start over this many seconds (0 = off). */
-  loopCrossfade?: number;
-  /**
-   * The intro scrubs this clip with the scroll (the dust, the bus), so it's
-   * encoded for instant seeking: ≤30 fps, a keyframe every 4 frames. Keep
-   * such clips short.
-   */
-  seekable?: boolean;
-  /** Green- (or blue-) screen master → transparent clip. Requires blend "alpha". */
-  chromaKey?: { color: string; similarity: number; blend: number };
-  /** Frame used as the still (reduced motion, returning visitors, final state): seconds, or "last". */
-  poster: number | "last";
-
-  // ── Playback (the intro) ───────────────────────────────────────────────
-  blend: ClipBlend;
-  loop: boolean;
-  /** Seconds into the processed clip where playback starts. */
-  startAt: number;
-  /**
-   * Framing when the screen's shape crops the clip (like CSS object-position):
-   * which part of the frame to keep in view.
-   */
+  /** Flip horizontally. */
+  mirror?: boolean;
+  beats: FilmBeats;
+  /** Framing when the screen's shape crops the film (like CSS object-position): which part stays in view. */
   focus: { x: number; y: number };
   /**
-   * The least of the frame's width that must stay visible (0–1). Portrait
-   * phones would otherwise crop a wide subject (the bus) down to its middle:
-   * above this the clip is shown as a feathered band instead of being cropped.
+   * The least of the frame's width / height that must stay visible (0–1).
+   * Past either, the film is shown as a feathered band (over the scene's glow)
+   * instead of being cropped further.
    */
-  minVisible: number;
-  /**
-   * Where the subject is: x = body centre, y = where it touches the ground,
-   * h = its height (all fractions of the frame). Used to line the scenes up:
-   * the cartoon starts exactly over the real bird, the bus appears where the
-   * roadrunner vanished into the dust.
-   */
-  subject: { x: number; y: number; h: number };
+  minVisible: { x: number; y: number };
 };
 
-export const introClips = {
-  /** Scene 1: the real roadrunner, already running when the page opens (loops, never stops). */
-  real: {
-    file: "real-roadrunner",
-    label: "Real roadrunner running",
-    poster: 0,
-    loopCrossfade: 0,
-    blend: "normal",
-    loop: true,
-    startAt: 0,
-    focus: { x: 0.5, y: 0.6 },
-    minVisible: 0.62,
-    subject: { x: 0.5, y: 0.87, h: 0.244 },
-  },
-  /** Scene 2: the cartoon roadrunner running through the desert (the desert is in the footage; loops). */
-  cartoon: {
-    file: "cartoon-roadrunner",
-    label: "Cartoon roadrunner desert run",
-    poster: 1.5,
-    loopCrossfade: 0,
-    blend: "normal",
-    loop: true,
-    startAt: 0,
-    focus: { x: 0.5, y: 0.62 },
-    minVisible: 0.4,
-    subject: { x: 0.5, y: 0.87, h: 0.39 },
-  },
+export const introFilm = {
+  label: "Roadrunner to party bus",
   /**
-   * The cloud that hides the transformation. On black: layered with "screen".
-   * It follows the scroll frame by frame (builds and clears in both directions).
+   * The footage isn't final: the bus in it is a generic coach, not Smokey's
+   * bus. Keeps the "Placeholder footage" tag on screen (for both cuts); set to
+   * false once EVERY built cut shows the real bus.
    */
-  dust: {
-    file: "dust-transition",
-    label: "Dust cloud transition",
-    poster: 1.3,
-    seekable: true,
-    blend: "screen",
-    loop: false,
-    startAt: 0,
-    focus: { x: 0.5, y: 0.6 },
-    minVisible: 0,
-    /** Cloud centre and size at its thickest. */
-    subject: { x: 0.5, y: 0.72, h: 1 },
+  placeholder: true,
+  cuts: {
+    portrait: {
+      file: "film-portrait",
+      trim: { end: 11.65 },
+      beats: { tunnel: 4.6, swallowed: 7.7, cover: 7.95, headlights: 8.3, rest: 11.5 },
+      focus: { x: 0.5, y: 0.5 },
+      minVisible: { x: 0.75, y: 0.82 },
+    },
+    wide: {
+      file: "film-wide",
+      // Placeholders until the 16:9 render exists: set them from its contact sheet.
+      beats: { tunnel: 4.6, swallowed: 7.7, cover: 7.95, headlights: 8.3, rest: 11.5 },
+      focus: { x: 0.5, y: 0.55 },
+      minVisible: { x: 0.62, y: 0.7 },
+    },
   },
-  /**
-   * Scene 3: the black party bus rolling out of the dust and coming to rest.
-   * It follows the scroll (reversible), from just before the dust thins to
-   * the moment the branding lands: trim it to end when the bus is at rest.
-   */
-  bus: {
-    file: "party-bus",
-    label: "Black party bus reveal",
-    poster: "last",
-    seekable: true,
-    blend: "normal",
-    loop: false,
-    startAt: 0,
-    focus: { x: 0.5, y: 0.62 },
-    minVisible: 0.96,
-    subject: { x: 0.5, y: 0.85, h: 0.49 },
-  },
-} satisfies Record<ClipSlot, IntroClipConfig>;
+} satisfies { label: string; placeholder: boolean; cuts: Record<FilmCut, FilmCutConfig> };
 
-/** Clip timing the intro needs beyond the shared settings. */
-export const introClipTiming = {
-  /** Seconds into the dust clip where it covers the most: lined up with the hidden swap. */
-  dustPeakAt: 1.3,
-};
+/** The stills the build makes from each cut (reduced motion, no JS, before the film is in memory). */
+export const FILM_STILLS = ["start", "cover", "rest"] as const;
+export type FilmStill = (typeof FILM_STILLS)[number];
+
+/** The soft glow behind a film shown as a band: one per stretch of the story, crossfaded with it. */
+export const FILM_GLOWS = ["start", "tunnel", "cover", "headlights", "rest"] as const;
+export type FilmGlow = (typeof FILM_GLOWS)[number];
+
+/** When each still and glow is taken (seconds into the processed cut). */
+export function frameTimes(beats: FilmBeats): Record<FilmStill | FilmGlow, number> {
+  return {
+    start: 0,
+    tunnel: (beats.tunnel + beats.swallowed) / 2,
+    cover: beats.cover,
+    headlights: beats.headlights + (beats.rest - beats.headlights) * 0.2,
+    rest: beats.rest,
+  };
+}
 
 /** Web files live here (public/video/intro). */
 export const INTRO_VIDEO_BASE = "/video/intro";
