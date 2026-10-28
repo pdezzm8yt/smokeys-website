@@ -35,9 +35,10 @@ export function SiteFooter() {
         </nav>
 
         <div>
-          <h2 className="flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-foreground uppercase">
-            Contact {phone.sample && <SampleTag />}
-          </h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xs font-semibold tracking-[0.2em] text-foreground uppercase">Contact</h2>
+            {phone.sample && <SampleTag />}
+          </div>
           <ul className="mt-4 flex flex-col gap-3 text-sm text-muted-foreground">
             <li>
               <a href={phone.href} className="inline-flex items-center gap-3 py-1 transition-colors hover:text-foreground">

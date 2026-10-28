@@ -17,10 +17,9 @@ export const metadata: Metadata = {
     siteName: `${site.name} Party Bus`,
     title: `${site.name} Party Bus`,
     description: site.description,
-    url: "/",
   },
-  twitter: { card: "summary_large_image", title: `${site.name} Party Bus`, description: site.description },
-  alternates: { canonical: "/" },
+  // "summary" until there's a share image (opengraph-image); each page sets its own canonical and OG URL.
+  twitter: { card: "summary", title: `${site.name} Party Bus`, description: site.description },
   formatDetection: { telephone: false },
   robots: siteIndexable ? undefined : { index: false, follow: false },
 };

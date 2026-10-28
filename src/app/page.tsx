@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { BusStats } from "@/components/home/bus-stats";
 import { FaqList } from "@/components/home/faq-list";
 import { GalleryPreview } from "@/components/home/gallery-preview";
@@ -8,12 +9,18 @@ import { PackagesGrid } from "@/components/home/packages-grid";
 import { QuoteCta } from "@/components/home/quote-cta";
 import { IntroSequence } from "@/components/intro/intro-sequence";
 import { DustLayer, SceneBus, SceneCartoon, SceneReal } from "@/components/intro/scenes";
+import { SampleTag } from "@/components/ui/sample-tag";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { busFacts } from "@/content/bus";
-import { faqs } from "@/content/faq";
+import { faqs, faqsSample } from "@/content/faq";
 import { gallery } from "@/content/gallery";
-import { occasions } from "@/content/occasions";
+import { occasions, occasionsSample } from "@/content/occasions";
 import { packages } from "@/content/packages";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
+};
 
 export default function HomePage() {
   return (
@@ -43,6 +50,7 @@ export default function HomePage() {
               className="mb-4"
             />
             <OccasionsRail occasions={occasions} />
+            {occasionsSample && <SampleTag label="Sample event list · confirm before launch" className="mt-6" />}
           </div>
         </section>
 
@@ -51,7 +59,7 @@ export default function HomePage() {
             id="packages-title"
             eyebrow="Packages"
             title="Pick your pace."
-            lede="Every package includes a professional driver, the full light show and the sound system. Pricing depends on date and route, so request a quote for an exact number."
+            lede="Pricing depends on date, hours and route, so request a quote for an exact number."
             align="center"
             className="mb-16"
           />
@@ -78,6 +86,7 @@ export default function HomePage() {
             lede="Don't see yours? Ask when you request a quote and we'll answer it personally."
           />
           <FaqList faqs={faqs} />
+          {faqsSample && <SampleTag label="Sample answers · confirm before launch" className="mt-6" />}
         </section>
 
         <QuoteCta />

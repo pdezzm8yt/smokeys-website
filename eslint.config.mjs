@@ -4,7 +4,8 @@ import nextTs from "eslint-config-next/typescript";
 const config = [
   ...nextVitals,
   ...nextTs,
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  // .claude/ holds agent worktrees (other checkouts of this repo, with their own builds); .cache/ is scratch output.
+  { ignores: [".next/**", "node_modules/**", "next-env.d.ts", ".claude/**", ".cache/**"] },
 ];
 
 export default config;

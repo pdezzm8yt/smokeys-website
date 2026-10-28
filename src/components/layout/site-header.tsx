@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { SampleTag } from "@/components/ui/sample-tag";
 import { nav, quoteHref, site } from "@/content/site";
 import { Logo } from "./logo";
 
@@ -38,8 +39,11 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-        {/* The homepage's hero is the end of the intro film (the bus, SMOKEY'S, the CTAs), not its first frame. */}
-        <a href="#intro-end" className="-m-2 rounded-lg p-2" aria-label={`${site.name} home`}>
+        {/* The homepage's hero is the end of the intro film (the bus, SMOKEY'S, the CTAs), not its first frame.
+            A section link like the nav: a same-page scroll on the homepage, a full load from any other page
+            (so the intro's pre-paint script runs). */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+        <a href="/#intro-end" className="-m-2 rounded-lg p-2" aria-label={`${site.name} home`}>
           <Logo />
         </a>
 
@@ -121,8 +125,9 @@ export function SiteHeader() {
           <a href={quoteHref} onClick={closeMenu} className={buttonClasses({ size: "lg", className: "mt-auto w-full" })}>
             Get a Quote
           </a>
-          <a href={site.contact.phone.href} className="mt-4 text-center text-sm text-muted-foreground hover:text-foreground">
+          <a href={site.contact.phone.href} className="mt-4 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground hover:text-foreground">
             or call {site.contact.phone.display}
+            {site.contact.phone.sample && <SampleTag />}
           </a>
         </div>
       </dialog>
