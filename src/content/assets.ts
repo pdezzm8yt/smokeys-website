@@ -9,10 +9,9 @@ import busInterior from "@/assets/intro/bus-interior.jpg";
  * `src: null` → the component renders its built-in illustrated placeholder.
  * `placeholder: true` → the UI labels it as a sample, never as the real bus.
  *
- * The intro's video clips are NOT here: see src/content/intro-video.ts.
- * The images in src/assets/intro are GENERATED from the owner's originals in
- * assets/intro-source by `node scripts/intro-assets/build.mjs` (the bus photos
- * below, and the stills the intro's placeholder clips are rendered from).
+ * The intro film is NOT here: see src/content/intro-video.ts.
+ * The bus photos below (src/assets/intro) are GENERATED from the owner's
+ * originals in assets/intro-source by `node scripts/intro-assets/build.mjs`.
  */
 export type AssetSlot = {
   src: StaticImageData | null;
