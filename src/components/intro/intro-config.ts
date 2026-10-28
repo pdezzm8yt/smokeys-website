@@ -1,80 +1,53 @@
 /**
- * Timing and speed tunables for the intro. Change a number here, not in the
- * timeline code. Clip files, framing and where each subject stands live in
- * src/content/intro-video.ts; layout rules in globals.css (.intro-clip).
+ * Timing tunables for the intro. Change a number here, not in the timeline
+ * code. The film's files, framing and story beats (seconds into the footage)
+ * live in src/content/intro-video.ts; layout rules in globals.css (.intro-film).
  *
  * The intro is ONE timeline scrubbed by scroll. Its positions are timeline
  * units, not seconds: the whole timeline is spread over `scroll.screens`
- * screen-heights of scrolling (so 1 unit ≈ screens / total units of a screen).
- * Beats deliberately OVERLAP: the cartoon fades in while the real bird is
- * still visible, the dust clip starts while he's still running, the bus is in
- * place behind the dust before it clears.
+ * screen-heights of scrolling. The film's stretches (between its beats) get
+ * these many units each, so the pace can differ per stretch: the dust, where
+ * the roadrunner becomes the bus, gets more scroll than its seconds alone
+ * would give it.
  */
 export const INTRO = {
-  /** Scene 1 (the real clip) must be ready within this, or it starts as a still. */
-  firstClipTimeoutMs: 10_000,
-  /** The other clips must be ready within this, or they play as stills (scrolling unlocks anyway). */
-  restClipsTimeoutMs: 30_000,
+  /** The film must be in memory within this, or the story is told with stills (scrolling unlocks anyway). */
+  filmTimeoutMs: 25_000,
+  /** The loader waits at most this long for the engine code. */
+  engineTimeoutMs: 10_000,
 
   scroll: {
     /** How much scrolling the intro takes, in screen heights (the stage stays pinned meanwhile). */
-    screens: 4.5,
-    /** Reduced motion / Save-Data: a shorter run of calm crossfades. */
+    screens: 5,
+    /** Reduced motion / Save-Data / no film: a shorter run of calm crossfades. */
     stillScreens: 2,
     /** Seconds the timeline takes to catch up with the scrollbar: smooths wheel steps and touch flicks. */
     scrub: 0.8,
   },
 
   timeline: {
-    /** Camera push into the real bird while the cartoon fades in over it. */
-    push: 1.08,
-    /** Real → cartoon: an overlapping crossfade, both birds lined up and running. */
-    morph: 0.8,
-    morphLength: 1.1,
-    /** The cartoon's desert run, until the storm. */
-    run: 1.9,
-    /** Small dust starts gathering at his feet this far into the run. */
-    feetDustAt: 0.7,
-    /** The dust clip starts this long before the storm (he's still running). */
-    dustLead: 0.5,
-    /** The storm builds to full cover (the swap happens at its end). */
-    dustBuild: 0.9,
-    /** Frame fully covered while the roadrunner becomes the bus. */
-    hold: 0.3,
-    /** Dust clears; the camera settles on the bus. */
-    clear: 1.4,
-    /** The bus clip starts this long before the dust thins: already driving when revealed. */
-    busLead: 0.2,
-    /** Branding waits for the camera to settle; CTAs come after branding. */
-    brandAfterClear: 1.45,
+    /** Film start → the tunnel: the roadrunner's run. */
+    run: 1.7,
+    /** The tunnel → he's swallowed by the dust. */
+    tunnel: 1.2,
+    /** Swallowed → the headlights: the thickest dust, where he becomes the bus. */
+    dust: 0.9,
+    /** The headlights → the bus at rest. */
+    reveal: 1.5,
+    /** Branding lands just after the film comes to rest; CTAs come after branding. */
+    brandAfterRest: 0.1,
     ctaAfterBrand: 0.5,
     ctaLength: 0.6,
     /** A last beat to take it in before the stage unpins and the page scrolls on. */
     dwell: 0.35,
+    /** "Fast like a roadrunner…" shows during the run. */
+    captionAt: 0.3,
+    captionFor: 0.8,
   },
 
-  /**
-   * World speed: one number that drives everything that shows speed (the
-   * running clips' playback rate, speed lines, feet dust, parallax layers).
-   * It rises with scroll progress: idle → kick → run → storm.
-   */
-  speed: {
-    idle: 1,
-    kick: 1.9,
-    run: 2.5,
-    storm: 3.4,
-    /** Extra speed while you scroll fast (it eases back when you stop). */
-    scrollBoost: 1.2,
-  },
+  /** The camera (GSAP, around the film): a slow push during the run, a charge into the dust, settling on the bus. */
+  camera: { push: 1.05, charge: 1.12 },
 
-  /** How world speed maps onto the running clips' playback rate: 1 + (speed − 1) × gain, capped. */
-  video: { speedGain: 0.25, maxRate: 1.75 },
-
-  /** Seconds per loop of each cartoon-desert layer at world speed 1 (only behind a transparent cartoon clip). */
-  loops: {
-    desertClouds: 65,
-    desertFar: 26,
-    desertMid: 7,
-    desertNear: 1.4,
-  },
+  /** The dust-coloured haze over everything at the swap (0–1): the film's own dust does most of the hiding. */
+  haze: 0.55,
 } as const;

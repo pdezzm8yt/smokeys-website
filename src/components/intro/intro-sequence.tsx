@@ -5,15 +5,15 @@ import { useCallback, useEffect, useRef, type CSSProperties, type ReactNode } fr
 import { SampleTag } from "@/components/ui/sample-tag";
 import { site } from "@/content/site";
 import { INTRO } from "./intro-config";
-import { hasPlaceholderFootage } from "./intro-clips";
 import type { IntroEngine } from "./intro-engine";
-import { IntroMedia } from "./intro-media";
+import { hasPlaceholderFootage } from "./intro-film";
+import { FilmMedia } from "./intro-media";
 
 type IntroSequenceProps = {
-  real: ReactNode;
-  cartoon: ReactNode;
-  bus: ReactNode;
-  dust: ReactNode;
+  /** The film and everything that moves with it (intro-layers.tsx). */
+  film: ReactNode;
+  /** The headline and CTAs the film comes to rest under. */
+  copy: ReactNode;
   /** Where "Explore" leads once the bus is revealed. */
   exploreHref: string;
 };
@@ -32,7 +32,7 @@ function loadEngine() {
 
 const html = () => document.documentElement;
 
-/** Reduced motion or Save-Data: the story as stills (no clips downloaded). */
+/** Reduced motion or Save-Data: the story as stills (the film isn't downloaded). */
 function introStill() {
   const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
   return saveData || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -55,17 +55,18 @@ function within<T>(promise: Promise<T>, ms: number, fallback?: { value: T }) {
 
 /**
  * The signature intro, driven by scroll: a tall section whose stage stays
- * pinned (CSS sticky) while scrolling plays ONE GSAP timeline (see
- * ./intro-engine): real roadrunner → cartoon roadrunner → dust → black party
- * bus → branding, and back again when scrolling up. Then the stage unpins and
- * the page carries on.
+ * pinned (CSS sticky) while scrolling scrubs ONE film with ONE GSAP timeline
+ * (see ./intro-engine): the roadrunner runs into the dust, the black party
+ * bus drives out of it, branding, and back again when scrolling up. Then the
+ * stage unpins and the page carries on.
  *
- * This component only handles the life cycle: loading the footage behind the
- * branded loader (the page waits at the top until it's all in memory, so
- * nothing can stall or flash), starting the engine, and Skip. Nothing here
- * re-renders while scrolling. Scenes are Server Components passed in as slots.
+ * This component only handles the life cycle: the branded loader (until the
+ * film's opening frame is on screen), holding the page at the top until the
+ * film is in memory (so scrubbing can never stall or flash), starting the
+ * engine, and Skip. Nothing here re-renders while scrolling. The layers are
+ * Server Components passed in as slots.
  */
-export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSequenceProps) {
+export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const engine = useRef<IntroEngine | null>(null);
@@ -78,8 +79,7 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
     if (html().hasAttribute("data-intro-failed")) return;
     const still = introStill();
     if (still) html().dataset.introStill = "";
-    html().dataset.introArmed = ""; // feet-dust sprites may load now
-    // At the top, the story waits for its footage; a restored or linked scroll position doesn't.
+    // At the top, the story waits for its film; a restored or linked scroll position doesn't.
     const atTop = window.scrollY < 8 && (!window.location.hash || window.location.hash === "#top");
     if (atTop) {
       html().dataset.introLoading = "js"; // JS owns the loader now (the boot script's failsafe stands down)
@@ -89,12 +89,10 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
       setScrollLock(false);
     }
 
-    const media = new IntroMedia(stage, still);
-    const bar = (selector: string) => {
-      const el = stage.querySelector<HTMLElement>(selector);
-      return (f: number) => {
-        if (el) el.style.transform = `scaleX(${f})`;
-      };
+    const media = new FilmMedia(stage, still);
+    const progress = stage.querySelector<HTMLElement>("[data-intro-progress]");
+    const onProgress = (f: number) => {
+      if (progress) progress.style.transform = `scaleX(${f})`;
     };
 
     // While the page holds still at the top, any scroll away from it is navigation (the "Skip to
@@ -108,33 +106,35 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
 
     let cancelled = false;
     Promise.all([
-      within(loadEngine(), INTRO.firstClipTimeoutMs),
-      media.load(["real"], bar("[data-intro-progress]"), INTRO.firstClipTimeoutMs),
+      within(loadEngine(), INTRO.engineTimeoutMs),
+      within(media.stillReady("start"), 3000, { value: undefined }),
       within(document.fonts.ready.then(() => undefined), 3000, { value: undefined }),
     ])
-      .then(([mod]) => {
+      .then(async ([mod]) => {
         if (cancelled) return;
-        const eng = new mod.IntroEngine(section, stage, media, { still });
+        if (!media.cut) throw new Error("The intro has no film.");
+        // The opening frame is on screen: the loader lifts, and the scroll hint shows the film's
+        // download progress until it's in memory.
+        if (!still) html().dataset.introPending = "";
+        html().removeAttribute("data-intro-loading");
+        const ready = await media.load(onProgress, INTRO.filmTimeoutMs);
+        if (cancelled) return;
+        // No film (still mode, or it couldn't load in time): the stills tell the story, on the shorter scroll.
+        if (!ready) html().dataset.introStill = "";
+        const eng = new mod.IntroEngine(section, stage, media, { still: !ready });
         engine.current = eng;
         delete html().dataset.introFinal; // the timeline owns the stage from here
-        html().dataset.introPending = "";
         eng.start();
-        void eng.enter().then(() => {
-          if (!cancelled) html().removeAttribute("data-intro-loading");
-        });
-        return media.load(still ? ["cartoon", "bus"] : ["cartoon", "dust", "bus"], bar("[data-intro-progress-rest]"), INTRO.restClipsTimeoutMs).then(() => {
-          if (cancelled) return;
-          eng.refresh();
-          delete html().dataset.introPending;
-          setScrollLock(false);
-        });
+        delete html().dataset.introPending;
+        setScrollLock(false);
       })
       .catch(() => {
         if (cancelled) return;
-        // The engine couldn't load (offline, blocked script): show the finished hero instead.
+        // The engine couldn't load (offline, blocked script), or there's no film: show the finished hero instead.
         html().dataset.introFinal = "";
         html().dataset.introFailed = "";
         html().removeAttribute("data-intro-loading");
+        delete html().dataset.introPending;
         delete html().dataset.introStage;
         setScrollLock(false);
       });
@@ -159,7 +159,7 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
     if (!engine.current) {
       // Still loading: CSS shows the finished hero (the engine takes over from there once ready).
       html().dataset.introFinal = "";
-      html().dataset.introStage = "bus";
+      html().dataset.introStage = "end";
     }
     window.scrollTo({ top: section.offsetTop + section.offsetHeight - window.innerHeight, behavior: "instant" });
     section.querySelector<HTMLElement>("#intro-title")?.focus({ preventScroll: true });
@@ -176,45 +176,32 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
       {/* Where the film comes to rest (bus, SMOKEY'S, CTAs): the header's home link and deep links land here. */}
       <span id="intro-end" aria-hidden="true" className="intro-end pointer-events-none absolute inset-x-0 h-px" />
       {/*
-        The pinned stage: one scene whose layers stay mounted while the scroll plays the timeline.
-        It's as tall as the LARGE viewport (the film still fills the screen once a phone's toolbar
-        hides); clips and controls are placed within the small viewport (never under the toolbar).
+        The pinned stage: its layers stay mounted while the scroll plays the timeline. It's as tall
+        as the LARGE viewport (the film still fills the screen once a phone's toolbar hides); the
+        film and controls are placed within the small viewport (never under the toolbar).
       */}
       <div ref={stageRef} className="intro-stage sticky top-0 isolate h-lvh w-full overflow-hidden bg-black">
-        {/* Measures the small viewport for the engine (the frame the clips are placed in). */}
+        {/* Measures the small viewport for the engine (the frame the film is placed in). */}
         <div data-frame aria-hidden="true" className="pointer-events-none invisible absolute inset-x-0 top-0 h-svh" />
-        <div data-scene="real" className="absolute inset-0" aria-hidden="true">
-          {real}
-        </div>
-        <div data-scene="cartoon" className="invisible absolute inset-0 opacity-0" aria-hidden="true">
-          {cartoon}
-        </div>
-        <div data-scene="bus" className="absolute inset-0 opacity-0">
-          {bus}
+        <div aria-hidden="true" className="absolute inset-0">
+          {film}
         </div>
 
-        {/* Transition layers: a flat dust-coloured cover, the dust clip (blends into the scenes), a flash. */}
+        {/* A dust-coloured haze over the film where the roadrunner becomes the bus (the film's own dust does most of the hiding). */}
         <div
           data-fx="haze"
           aria-hidden="true"
-          className="pointer-events-none invisible absolute inset-0 z-20 bg-[radial-gradient(circle_at_50%_68%,#c9a678_0%,#a9855b_48%,#76583a_100%)] opacity-0"
-        />
-        {dust}
-        <div
-          data-fx="flash"
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-22 bg-[radial-gradient(circle_at_50%_72%,#fffaf0_0%,rgb(255_222_168/0.92)_35%,rgb(255_166_96/0.65)_75%)] opacity-0"
+          className="pointer-events-none invisible absolute inset-0 z-20 bg-[radial-gradient(circle_at_50%_55%,#d0a06a_0%,#a5713f_50%,#5e3b1f_100%)] opacity-0"
         />
 
-        {/* Branded loader while scene 1's footage downloads (only when JS set data-intro-loading). */}
-        <div data-intro-loader aria-hidden="true" className="absolute inset-0 z-40 hidden flex-col items-center justify-center gap-5 bg-[#0b0a10]">
-          <p className="font-display text-sm font-bold tracking-[0.6em] text-white/80">{site.name.toUpperCase()}</p>
-          <div className="h-0.5 w-40 overflow-hidden rounded-full bg-white/10">
-            <div data-intro-progress className="h-full origin-left scale-x-0 bg-primary transition-transform duration-200" />
-          </div>
+        {copy}
+
+        {/* Branded loader until the film's opening frame is on screen (only when JS set data-intro-loading). */}
+        <div data-intro-loader aria-hidden="true" className="absolute inset-0 z-40 flex flex-col items-center justify-center bg-[#0b0a10]">
+          <p className="font-display text-sm font-bold tracking-[0.6em] text-white/80 motion-safe:animate-pulse">{site.name.toUpperCase()}</p>
         </div>
 
-        {/* "Scroll to start": shows download progress until every clip is in memory. */}
+        {/* "Scroll to start": shows the film's download progress until it's in memory. */}
         <div
           data-intro-hint="scroll"
           role="status"
@@ -228,7 +215,7 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
           <span data-pending className="flex flex-col items-center gap-2 text-white/70">
             Loading footage&hellip;
             <span className="h-0.5 w-28 overflow-hidden rounded-full bg-white/15">
-              <span data-intro-progress-rest className="block h-full origin-left scale-x-0 bg-primary transition-transform duration-200" />
+              <span data-intro-progress className="block h-full origin-left scale-x-0 bg-primary transition-transform duration-200" />
             </span>
           </span>
         </div>
@@ -252,7 +239,7 @@ export function IntroSequence({ real, cartoon, bus, dust, exploreHref }: IntroSe
         </a>
 
         {hasPlaceholderFootage ? (
-          // Readable over the brightest scene, clear of the centred controls on narrow phones, never in the way of a tap.
+          // Readable over the brightest frame, clear of the centred controls on narrow phones, never in the way of a tap.
           <SampleTag
             label="Placeholder footage"
             className="intro-bottom-ui pointer-events-none absolute right-4 z-30 bg-black/75 text-white/90 max-sm:mb-14 short:hidden"

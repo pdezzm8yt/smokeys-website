@@ -12,13 +12,13 @@
 | Hosting | Vercel with per-PR previews (previews noindex via `robots.ts`) |
 
 ## Intro
-One scroll-driven scene: a pinned stage (CSS sticky inside a ~5.5-screen section) whose single GSAP master timeline is scrubbed by ScrollTrigger, reversible both ways. Video clips provide the movement; GSAP adds the camera, crossfades, dust/haze, speed and branding.
-1. Real roadrunner clip (looping) running from the start; scrolling pushes the camera in and speeds the world up (playback rate + speed lines + feet dust).
-2. The cartoon clip, already running, crossfades in over it, lined up (same spot, size, ground line) by measured camera transforms; the camera eases back to the cartoon's framing as it runs.
-3. Dust gathers at his feet, the dust clip (scrubbed frame by frame with the scroll) grows over him, a flat dust-coloured cover guarantees full cover at the swap; the bus layer takes over underneath.
-4. The dust thins, the bus clip (scrubbed with the scroll, like the dust) drives out of it, the camera settles; SMOKEY'S, then the CTAs; the stage unpins and the page continues.
-Clips: `src/content/intro-video.ts` → `npm run video:build` → `public/video/intro/` (H.264 MP4 ≤1920 wide, VP9 WebM, phone crop, still frame; HEVC-alpha for transparent clips). Everything is downloaded fully before the scroll unlocks. Temporary, clearly labelled placeholders are rendered from the owner's images until the real footage arrives (see `assets/intro-source/video/README.md`).
-Reduced motion / Save-Data = crossfaded stills on a shorter scroll (no clips downloaded). No JS = the finished hero.
+One scroll-driven film: a pinned stage (CSS sticky inside a 6-screen section) whose single GSAP master timeline is scrubbed by ScrollTrigger, reversible both ways. ONE continuous shot provides all the movement; it never plays on its own, it's seeked frame by frame to the playhead. GSAP adds the camera, a dust haze, the glow, the caption and the branding.
+1. The roadrunner runs (the camera pushes in slowly; "Fast like a roadrunner…").
+2. He runs into a tunnel and the dust swallows him; the camera charges in and a dust-coloured haze peaks while nothing is visible: that's where he becomes the bus.
+3. The bus's headlights cut through, it drives out into the light, the camera settles; SMOKEY'S, then the CTAs; the stage unpins and the page continues.
+Each stretch between the film's beats (tunnel, swallowed, cover, headlights, rest: seconds, set per cut in `src/content/intro-video.ts`) gets its own share of the scroll (`intro-config.ts`).
+Footage: two cuts of the same shot, portrait (phones) and wide 16:9 (desktops), each from its own master → `npm run video:build` → `public/video/intro/` (H.264 ≤1920 plus a lighter ≤1440 phone version, VP9; all encoded for instant seeking; three stills; five tiny pre-blurred glows). Each screen gets the closer cut; until the wide master exists, desktops show the portrait cut as a feathered band over the glow. The film downloads fully before the scroll unlocks (~3 MB on phones). The current film is the owner's AI render with a generic coach, not Smokey's bus: it's labelled "Placeholder footage" until a render with the real bus replaces it (see `assets/intro-source/video/README.md`).
+Reduced motion / Save-Data / a film that can't load = crossfaded stills on a shorter scroll. No JS = the finished hero on the film's resting frame.
 
 ## Routes (planned)
 `/` (done) · `/about` · `/party-bus` · `/packages` · `/events` + `/events/[slug]` · `/gallery` · `/book` · `/contact` · `/faq` · `/privacy` · `/terms`
@@ -31,7 +31,7 @@ Mobile p75: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1.
 Initial JS measured 2026-09-30: ~242 KB gzip (React + Next runtime ≈ 150 KB, Motion + app ≈ 90 KB); GSAP + the intro engine (~30 KB gzip) are a separate chunk loaded in parallel with the intro preload, never for returning visitors until Replay. The original 100 KB target is below the Next.js 16 baseline; revised target ≤ 200 KB, work item for phase 4 (e.g. `motion/react-mini` for the intro, split below-fold widgets). LCP element is the intro wordmark/text, so the static HTML paints before JS.
 
 ## Assets needed from owner
-Licensed realistic roadrunner video/photo (landscape + portrait) · final mascot art (SVG/Lottie) · bus photos lights-off AND lights-on from the same tripod position · interior photos/video · logo SVG · brand colors/fonts · real specs, packages, contact details, service area, FAQ answers.
+Intro film re-rendered with the real bus, portrait 9:16 AND wide 16:9 (same story beats) · final mascot art (SVG/Lottie) · bus photos lights-off AND lights-on from the same tripod position · interior photos/video · logo SVG · brand colors/fonts · real specs, packages, contact details, service area, FAQ answers.
 
 ## Deployment (pre-launch lockdown)
 Vercel project `smokey6/smokeys-website`, connected to GitHub `pdezzm8yt/smokeys-website`; production branch `main`.

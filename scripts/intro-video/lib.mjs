@@ -1,5 +1,5 @@
 /**
- * Shared helpers for the intro video scripts (build, placeholders, inspect).
+ * Shared helpers for the intro video scripts (build, inspect).
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
