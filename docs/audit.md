@@ -2,6 +2,8 @@
 
 The whole project, checked against the owner's phase 1–5 specs and the "master recovery" brief.
 
+_Status updated after the merge (2026-10-28): PRs #5–#9 landed together through PR #10, and PR #9 added the living day/night sky. Where the original said "this PR", it meant PR #8._
+
 **How it was checked**
 - **Six read-only audit agents:** homepage, shell/SEO/a11y, showroom, booking/backend, intro vs spec, and technology research.
 - **An independent four-lens review of the new intro:** runtime, markup/CSS/a11y, build pipeline, and tests/docs. Every finding was put to a skeptic told to disprove it.
@@ -11,12 +13,12 @@ The whole project, checked against the owner's phase 1–5 specs and the "master
 
 ## At a glance
 
-- **Built and working:** the scroll-driven intro film, the homepage sections with sample content, the tap-to-explore bus photo with hotspots, the gallery with lightbox, the FAQ, and the pre-launch lockdown (noindex, no production deploys, "Only me" previews).
+- **Built and working:** the scroll-driven intro film, the homepage sections with sample content, the tap-to-explore bus photo with hotspots, the gallery with lightbox, the FAQ, and the living day/night sky behind every page (glass panels; choose with the sun, the moon, the header switch or the "Day or night?" picker), and the pre-launch lockdown (noindex, no production deploys, "Only me" previews).
 - **Not built yet:**
   - the booking form, backend and payments;
   - accounts and the admin dashboard;
   - SMS, the service-area map and analytics;
-  - the side navigation, the day/night control and the interior 360;
+  - the showroom's side navigation and the interior 360;
   - any 3D / Three.js work.
 
   These are specs, not broken code.
@@ -29,17 +31,17 @@ The whole project, checked against the owner's phase 1–5 specs and the "master
 | C1 | Critical | next 16.3.7 had two unauthenticated remote-code-execution advisories (image optimizer with SVG; `use cache`), plus SSRF, a Server Actions DoS and cache poisoning. Transitive `zod` and `source-map-js` also had high-severity advisories | Confirmed (`npm audit`) | **Repaired:** PR #6 (next 16.4.3; `npm audit`: 0) |
 | C2 | Critical (launch blocker) | Every "Get a Quote" path ends at a fictional phone number (555-0199) and a `.example` email. No form exists, so a visitor can't reach the business | Confirmed (rendered page) | **Open:** needs the real contact details, then the booking form (see "What I need from you") |
 | H1 | High | 23 defects in the new intro. Among them: Skip followed by a failed load threw the visitor 3–5 screens down; background tabs fell back to stills; the frame flashed after Skip; the progress bar never filled; H.264 Level 5.0 was declared as 4.0; and the tests couldn't catch any of it | Confirmed (review + reproduction tests) | **Repaired:** PR #7 (20 flows now cover them) |
-| H2 | High | The "Meet the bus" photos were shown as Smokey's own bus. A dealer-style plate, fleet unit "71" and an operator placard suggest they may be dealer or another operator's photos; rights aren't confirmed; the exterior is only 560 px wide | Suspected | **Repaired:** shown as "Sample photo" with a neutral alt text until you confirm (this PR) |
+| H2 | High | The "Meet the bus" photos were shown as Smokey's own bus. A dealer-style plate, fleet unit "71" and an operator placard suggest they may be dealer or another operator's photos; rights aren't confirmed; the exterior is only 560 px wide | Suspected | **Repaired:** shown as "Sample photo" with a neutral alt text until you confirm (PR #8) |
 | H3 | High | Two different buses appear back to back: the intro's AI coach (3-axle motorcoach) and the "Meet the bus" Ford shuttle | Confirmed | **Open:** needs footage and photos of the real bus |
-| H4 | High | A Warner Bros. Road Runner image is tracked in a **public** repo: `assets/intro-source/roadrunner-cartoon.webp` plus a derivative | Confirmed | **Partly repaired:** PR #5 removes the generated copies. The original is yours, so deleting it (and purging it from history) needs your decision |
+| H4 | High | A Warner Bros. Road Runner image is tracked in a **public** repo: `assets/intro-source/roadrunner-cartoon.webp` plus a derivative | Confirmed | **Partly repaired:** PR #5 removed the generated copies. The original is yours, so deleting it (and purging it from history) needs your decision |
 | H5 | High | Vercel Hobby is for non-commercial use only; taking bookings and payments needs Pro | Confirmed (Vercel terms) | **Open:** your decision before launch |
 | H6 | High | Nothing has been tested on a real iPhone, iPad, Android, Safari/WebKit or Firefox. The scripts only drive Chromium | Confirmed gap | **Open:** needs devices (or a device cloud) on the protected preview |
-| M1 | Medium | Unconfirmed claims were shown untagged: FAQ policies (alcohol, booking lead time), the events list (prom with minors, airport runs, wine tours), "leather" seats, "keeps the party private", and "every package includes…" | Confirmed | **Repaired:** tagged "Sample", or reworded to only what's visible (this PR) |
-| M2 | Medium | The sample phone number in the mobile menu had no "Sample" tag; the footer's tag sat inside its heading | Confirmed | **Repaired** (this PR) |
-| M3 | Medium | Nav and logo links were hash-only (`#bus`), so they broke on the 404 page and would on every future route | Confirmed | **Repaired:** `/#bus` etc. (this PR) |
-| M4 | Medium | The root layout set the canonical and OG URL to "/", which every future route would inherit | Confirmed | **Repaired:** moved to the homepage (this PR) |
+| M1 | Medium | Unconfirmed claims were shown untagged: FAQ policies (alcohol, booking lead time), the events list (prom with minors, airport runs, wine tours), "leather" seats, "keeps the party private", and "every package includes…" | Confirmed | **Repaired:** tagged "Sample", or reworded to only what's visible (PR #8) |
+| M2 | Medium | The sample phone number in the mobile menu had no "Sample" tag; the footer's tag sat inside its heading | Confirmed | **Repaired** (PR #8) |
+| M3 | Medium | Nav and logo links were hash-only (`#bus`), so they broke on the 404 page and would on every future route | Confirmed | **Repaired:** `/#bus` etc. (PR #8) |
+| M4 | Medium | The root layout set the canonical and OG URL to "/", which every future route would inherit | Confirmed | **Repaired:** moved to the homepage (PR #8) |
 | M5 | Medium | No Content-Security-Policy | Confirmed | **Open:** needs care (inline pre-paint script, `blob:` video, Vercel toolbar, and later Stripe and maps). Ship Report-Only first |
-| M6 | Medium | Initial JS is ~248 KB gzip, over the 200 KB budget | Confirmed (measured) | **Open:** trim when the booking island lands |
+| M6 | Medium | Initial JS is ~258 KB gzip (248 KB before the living sky added ~10 KB), over the 200 KB budget | Confirmed (measured) | **Open:** trim when the booking island lands |
 | M7 | Medium | The film is served with `max-age=0` under unhashed names, so every visit revalidates 3–6 MB before scrolling unlocks | Confirmed | **Open:** content-hash the names and mark them immutable |
 | M8 | Medium | "Meet the bus" on phones: a tapped hotspot's text appears below the photo, often off screen, and screen readers aren't told | Confirmed | **Open** |
 | M9 | Medium | The gallery lightbox crops photos (`object-cover` in a fixed frame), so real photos will be cut | Confirmed | **Open:** fix before real photos go in |
@@ -47,9 +49,9 @@ The whole project, checked against the owner's phase 1–5 specs and the "master
 | M11 | Medium | The placeholder domain `smokeys.example` is baked into the canonical, OG, sitemap and robots output | Confirmed | Launch item (`site.url`) |
 | L1 | Low | `/favicon.ico` returns 404; no apple-icon or web manifest | Confirmed | Open (needs the logo) |
 | L2 | Low | The intro footage carries the generator's small "Ai" badge, visible on desktop and partly on phones | Confirmed | Your decision (keep, crop, or re-render) |
-| L3 | Low | Colour seams: theme colour and loader `#0b0a10`, footer `#08080a`, stage `#000`, page about `#070709` | Confirmed | Fold into the black-gold retheme |
+| L3 | Low | Colour seams: theme colour and loader `#0b0a10`, footer `#08080a`, stage `#000`, page about `#070709` | Confirmed | **Partly repaired:** PR #9 (the theme colour follows the sky; the footer and page are glass over the sky). Open: the loader `#0b0a10` and the black film stage |
 | L4 | Low | The mobile menu button has no `aria-expanded` / `aria-controls` | Confirmed | Open |
-| L5 | Low | `.vercelignore` didn't exclude the 22 MB of local film masters, so a CLI deploy would upload them | Confirmed | **Repaired** (this PR) |
+| L5 | Low | `.vercelignore` didn't exclude the 22 MB of local film masters, so a CLI deploy would upload them | Confirmed | **Repaired** (PR #8) |
 
 Nothing else turned up in the runtime checks: no console errors, failed requests, broken in-page anchors or horizontal overflow on desktop or phone. The baseline security headers (`X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`) are present.
 
@@ -78,7 +80,7 @@ Nothing else turned up in the runtime checks: no console errors, failed requests
 
 | Item | Today | Needs from you |
 |---|---|---|
-| Black/gold/white design | Amber + neon pink/violet | Brand gold (or approve a provisional one), logo SVG, typeface direction |
+| Black/gold/white design | Provisional black/gold/white on a living day/night sky with frosted-glass panels (PR #9); neons only in the party illustrations | Approve or replace the provisional gold, logo SVG, typeface direction |
 | About Us | Missing | Your story, years in business, licence and insurance |
 | Our Fleet | One bus section (sample photos) | Confirm the photos, real specs, "fleet" wording |
 | Gallery (interior/exterior) | Illustrated placeholders | Real photos (and guest consent) |
@@ -106,21 +108,23 @@ Nothing else turned up in the runtime checks: no console errors, failed requests
 Order that best helps customers book: real contact details → booking request form (storage + email) → privacy/terms → Stripe deposit link → pricing and availability → accounts, admin, SMS, map.
 
 ### Phase 5: interactive showroom (plan only)
-**Exists:** exterior and interior hotspots on two photos, with a keyboard-accessible list (8 points).
+**Exists:**
+- exterior and interior hotspots on two photos, with a keyboard-accessible list (8 points);
+- a site-wide day/night choice (PR #9): the bus photo gets a night grade with glowing headlights and roof markers, and the choice is saved in `src/lib/booking-store.ts` for the quote.
 
 **Missing:**
 - the 8-section side navigation;
 - hotspots for the engine, wheels, headlights, doors (opening the interior), windows and rear;
-- the day/night control;
+- a photographed night look of the bus (today it's a grade of one daytime photo);
 - the interior 360;
-- shared booking state.
+- the booking fields beyond day or night (the booking form will extend `src/lib/booking-store.ts`).
 
 **Needs:**
 - **verified specs:** make, model and year; engine, horsepower, fuel and drivetrain; tyres; capacity; amenities;
 - **photos of each zone** at 3000 px+, from the same shoot;
 - a **day/night photo pair** shot from the same tripod position;
 - **360° interior photos** (2:1, 6000×3000+, from 2–3 positions, lights off and on);
-- your decision on what day vs night means for booking (a time window? pricing?).
+- your decision on what day vs night means for booking (a time window? pricing?). Today it's only a preference: the customer still picks the date and time.
 
 Without verified specs, those hotspots would be fake interactions, so they wait.
 
@@ -132,7 +136,7 @@ Without verified specs, those hotspots would be fake interactions, so they wait.
    - that the FAQ answers and the events list are right.
 3. **Decisions:**
    - "Explore the fleet" vs "Explore the bus";
-   - black/gold palette: provide a brand gold, or I propose one;
+   - black/gold palette: approve the provisional gold (PR #9) or provide your brand gold;
    - the Vercel Pro plan before launch;
    - what to do with the Warner Bros. original in the repo;
    - keep or crop the "Ai" badge;
@@ -150,10 +154,12 @@ Without verified specs, those hotspots would be fake interactions, so they wait.
 - `typecheck`, `lint` and `build` on each branch.
 - `npm run test:intro` against production builds:
   - PR #7: all 20 flows;
-  - PR #6 and this PR: all 17 of `main`'s flows.
+  - PR #6 and PR #8: all 17 of `main`'s flows;
+  - PR #10 (the merged #5–#9): all 20 flows.
 - `npm run perf:intro -- --gpu` on PR #7: 60 fps with 0% slow frames on desktop and phone at 1×, 4× and 6× CPU throttle; 274 of 277 film frames shown.
+- `npm run test:sky` on PR #9 and on PR #10: all 12 checks (each transition, clicking the sky, the booking merge, reduced motion, measured contrast day and night, frame rate, no-JS).
 - `npm audit` on PR #6: 0 vulnerabilities.
-- On this PR: nav links from the 404 page reach their sections (desktop, and the phone drawer); the tags render; the homepage alone declares the canonical.
+- On PR #8: nav links from the 404 page reach their sections (desktop, and the phone drawer); the tags render; the homepage alone declares the canonical.
 
 **Failed:** none outstanding. Every failure found during this audit was repaired, and the re-run passed.
 
@@ -166,7 +172,7 @@ Without verified specs, those hotspots would be fake interactions, so they wait.
 
 ## Your seven questions
 
-1. **Working:** the intro film (scrubbed, reversible, smooth in Chromium, with fallbacks), the homepage sections, the bus hotspots, the gallery and lightbox, the FAQ, the pre-launch lockdown and the security headers.
+1. **Working:** the intro film (scrubbed, reversible, smooth in Chromium, with fallbacks), the living day/night sky, the homepage sections, the bus hotspots, the gallery and lightbox, the FAQ, the pre-launch lockdown and the security headers.
 2. **Needs improvement:**
    - sample content presented without tags (fixed);
    - the photo provenance;
@@ -192,9 +198,9 @@ Without verified specs, those hotspots would be fake interactions, so they wait.
 5. **60 fps:** already measured in Chromium: transforms and opacity only, a seek-optimised encode, one seek in flight, the film fully in memory, glows pre-blurred at build time. Still to do: real-device checks, a seek-latency probe, and a frame-sequence fallback only for devices that need it.
 6. **Assets:** see "What I need from you", items 5 and 1–2.
 7. **Next, in order:**
-   1. merge #6, then #7, #5 and this PR;
+   1. ~~merge the open PRs~~ (done: #5–#9 merged through PR #10 on 2026-10-28);
    2. real contact details;
-   3. the reveal headline and buttons plus a provisional black-gold retheme (needs only the "fleet" decision);
+   3. the reveal headline and buttons (needs only the "fleet" decision; the provisional black-gold retheme came with PR #9);
    4. the booking request form (needs the accounts above);
    5. device testing on the preview;
    6. privacy and terms;
