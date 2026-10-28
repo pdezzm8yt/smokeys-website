@@ -108,7 +108,7 @@ export function IntroCopy() {
         data-bus-copyblock
         className="relative flex flex-col items-center px-4 pt-[calc(var(--header-h)+1rem)] text-center sm:pt-[calc(var(--header-h)+2rem)] short:absolute short:top-0 short:left-0 short:w-[max(44%,16rem)] short:items-start short:ps-6 short:pt-[calc(var(--header-h)+0.25rem)] short:text-start"
       >
-        <p data-bus-copy className="font-display text-sm font-bold tracking-tight text-neon-pink opacity-0 sm:text-lg short:[@media(max-height:20rem)]:hidden">
+        <p data-bus-copy className="font-display text-sm font-bold tracking-tight text-gold opacity-0 sm:text-lg short:[@media(max-height:20rem)]:hidden">
           &hellip;loud like a party bus.
         </p>
         {/* tabIndex -1: Skip moves focus here, so Tab continues to the CTAs. */}

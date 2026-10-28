@@ -16,7 +16,8 @@
     "perf:intro": "node scripts/perf/intro-perf.mjs",
     "video:inspect": "node scripts/intro-video/inspect.mjs",
     "video:build": "node scripts/intro-video/build.mjs",
-    "test:intro": "node scripts/perf/intro-flows.mjs"
+    "test:intro": "node scripts/perf/intro-flows.mjs",
+    "test:sky": "node scripts/perf/sky-flows.mjs"
   },
   "dependencies": {
     "clsx": "2.1.1",

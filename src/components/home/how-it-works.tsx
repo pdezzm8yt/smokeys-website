@@ -16,7 +16,7 @@ export function HowItWorks() {
       {/* Connecting "road" line draws itself in on scroll */}
       <m.span
         aria-hidden="true"
-        className="absolute top-7 right-[16%] left-[16%] hidden h-0.5 origin-left bg-linear-to-r from-primary via-neon-pink to-neon-violet md:block"
+        className="absolute top-7 right-[16%] left-[16%] hidden h-0.5 origin-left bg-linear-to-r from-primary via-accent to-primary md:block"
         initial={{ scaleX: 0 }}
         whileInView={{ scaleX: 1 }}
         viewport={{ once: true, amount: 0.8 }}
@@ -31,9 +31,9 @@ export function HowItWorks() {
           viewport={{ once: true, amount: 0.6 }}
           transition={{ ...enter(duration.slow), delay: 0.15 + i * 0.18 }}
         >
-          <span className="relative grid size-14 place-items-center rounded-full bg-background ring-2 ring-primary/70 shadow-[0_0_30px_-6px_var(--primary)]">
-            <step.icon aria-hidden="true" className="size-6 text-primary" />
-            <span className="absolute -top-1 -right-1 grid size-6 place-items-center rounded-full bg-neon-pink text-xs font-bold text-black">
+          <span className="relative grid size-14 place-items-center rounded-full bg-surface-raised ring-2 ring-primary/70 shadow-[0_0_30px_-6px_var(--primary)]">
+            <step.icon aria-hidden="true" className="size-6 text-gold" />
+            <span className="absolute -top-1 -right-1 grid size-6 place-items-center rounded-full bg-ink text-xs font-bold text-primary ring-1 ring-primary/60">
               {i + 1}
             </span>
           </span>

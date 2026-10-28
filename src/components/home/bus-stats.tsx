@@ -42,11 +42,11 @@ export function BusStats({ facts }: { facts: Fact[] }) {
   const anySample = facts.some((f) => f.sample);
 
   return (
-    <section aria-label="Smokey's at a glance" className="relative border-y border-white/8 bg-surface/60">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <section aria-label="Smokey's at a glance" className="relative mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8">
+      <div data-panel className="glass rounded-[1.75rem] px-6 py-10">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
           {facts.map((fact) => (
-            <div key={fact.label} className="flex flex-col-reverse gap-1 text-center md:border-s md:border-white/8 md:first:border-s-0">
+            <div key={fact.label} className="flex flex-col-reverse gap-1 text-center md:border-s md:border-border md:first:border-s-0">
               <dt className="text-xs font-semibold tracking-[0.18em] text-muted-foreground uppercase">{fact.label}</dt>
               <dd className="font-display text-3xl font-black tracking-tight text-foreground sm:text-4xl">
                 <Counter value={fact.value} suffix={fact.suffix} />
