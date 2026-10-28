@@ -13,9 +13,9 @@ function random(seed: number) {
   };
 }
 
-/** Size a canvas to its CSS box in device pixels (capped at 2x: stars stay crisp, memory stays small). */
-function fit(canvas: HTMLCanvasElement) {
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
+/** Size a canvas to its CSS box in device pixels, capped (stars are under 2 CSS px with soft halos: 1.5x is crisp). */
+function fit(canvas: HTMLCanvasElement, maxDpr = 1.5) {
+  const dpr = Math.min(maxDpr, window.devicePixelRatio || 1);
   const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
   const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
   if (canvas.width !== w) canvas.width = w;
@@ -63,7 +63,7 @@ export function paintStars(groups: HTMLCanvasElement[], count: number) {
  * fine grain. Drawn once at 2x.
  */
 export function paintMoon(canvas: HTMLCanvasElement) {
-  const { w } = fit(canvas);
+  const { w } = fit(canvas, 2);
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const r = w / 2;

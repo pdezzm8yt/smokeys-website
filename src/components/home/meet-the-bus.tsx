@@ -2,7 +2,7 @@
 
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
-import Image from "next/image";
+import Image, { getImageProps, type StaticImageData } from "next/image";
 import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { BusInterior } from "@/components/art/bus-interior";
 import { PartyBus } from "@/components/art/party-bus";
@@ -136,7 +136,7 @@ export function MeetTheBus() {
                     ) : (
                       current.fallback
                     )}
-                    {current.media.src && <BusLight view={current.id} src={current.media.src.src} />}
+                    {current.media.src && <BusLight view={current.id} src={current.media.src} />}
 
                     {current.hotspots.map((h) => {
                       const isActive = h.id === active?.id;
@@ -228,12 +228,14 @@ export function MeetTheBus() {
  * The grade follows the photo's own outline (a mask of the cut-out), so only
  * the bus is lit, never the sky behind it.
  */
-function BusLight({ view, src }: { view: ViewId; src: string }) {
+function BusLight({ view, src }: { view: ViewId; src: StaticImageData }) {
   if (view !== "exterior") {
     // The interior: its LED strips stand out more at night.
     return <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-xl bg-[#0b1a4a] opacity-[calc(var(--night)*0.25)] mix-blend-multiply" />;
   }
-  const mask = { maskImage: `url(${src})`, WebkitMaskImage: `url(${src})`, maskSize: "100% 100%", WebkitMaskSize: "100% 100%" };
+  // Only the outline matters: a small optimised copy (WebP keeps the transparency), not the original file.
+  const outline = getImageProps({ src, alt: "", width: 480, quality: 75 }).props.src;
+  const mask = { maskImage: `url(${outline})`, WebkitMaskImage: `url(${outline})`, maskSize: "100% 100%", WebkitMaskSize: "100% 100%" };
   const glow = (x: number, y: number, size: string, colour: string) => (
     <span
       className="absolute -translate-1/2 rounded-full opacity-[var(--night)]"

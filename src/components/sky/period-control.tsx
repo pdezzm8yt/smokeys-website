@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Moon, Sun } from "lucide-react";
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Period } from "@/content/sky";
 import { cn } from "@/lib/cn";
 import { paintMoon } from "./sky-paint";
@@ -22,10 +22,11 @@ export function PeriodControl({ variant, className }: { variant: "compact" | "la
   const { shown, chosen, choose } = useBooking();
   const buttons = useRef<Partial<Record<Period, HTMLButtonElement | null>>>({});
 
-  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+  // Arrows move from the radio that has focus to the other one, and check it (the ARIA radio pattern).
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, from: Period) => {
     if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
     e.preventDefault();
-    const next: Period = (chosen ?? shown) === "day" ? "night" : "day";
+    const next: Period = from === "day" ? "night" : "day";
     choose(next);
     buttons.current[next]?.focus();
   };
@@ -53,9 +54,9 @@ export function PeriodControl({ variant, className }: { variant: "compact" | "la
             title={label}
             tabIndex={focusable ? 0 : -1}
             onClick={() => choose(period)}
-            onKeyDown={onKeyDown}
+            onKeyDown={(e) => onKeyDown(e, period)}
             className={cn(
-              "grid size-8 place-items-center rounded-full transition-colors",
+              "grid size-8 place-items-center rounded-full transition-colors forced-colors:aria-checked:outline-2 forced-colors:aria-checked:outline-offset-1 forced-colors:aria-checked:outline-[Highlight] forced-colors:aria-checked:outline-solid",
               checked ? "bg-primary text-primary-foreground" : showing ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -72,7 +73,7 @@ export function PeriodControl({ variant, className }: { variant: "compact" | "la
             aria-checked={checked}
             tabIndex={focusable ? 0 : -1}
             onClick={() => choose(period)}
-            onKeyDown={onKeyDown}
+            onKeyDown={(e) => onKeyDown(e, period)}
             className={cn(
               "group relative flex items-center gap-5 rounded-(--radius-card) p-5 text-start ring-1 transition-[box-shadow,background-color] duration-300 sm:p-6",
               checked ? "bg-surface-raised shadow-[0_0_0_2px_var(--primary),0_20px_60px_-24px_var(--primary)] ring-transparent" : "bg-muted ring-border hover:ring-primary/60",
@@ -113,18 +114,42 @@ function Orb({ period }: { period: Period }) {
   );
 }
 
-/** One line saying what's saved for the quote (a polite live region: it's announced when it changes). */
-export function PeriodStatus({ className }: { className?: string }) {
-  const { chosen } = useBooking();
+/**
+ * One line saying what's saved for the quote. With `announce` (only one per
+ * page: next to the picker), screen readers also hear it, but only when the
+ * visitor changes the choice: not when a saved choice appears on page load.
+ */
+export function PeriodStatus({ className, announce = false }: { className?: string; announce?: boolean }) {
+  const { chosen, shown } = useBooking();
+  const hydrated = shown !== null;
+  const [said, setSaid] = useState("");
+  const seen = useRef<typeof chosen | null>(null);
+  useEffect(() => {
+    if (!announce || !hydrated) return;
+    // The first value after hydration is what was already saved: remember it, don't announce it.
+    if (seen.current === null) {
+      seen.current = chosen;
+      return;
+    }
+    if (chosen && chosen !== seen.current) setSaid(`Saved for your quote: ${chosen === "day" ? "a day ride" : "a night ride"}.`);
+    seen.current = chosen;
+  }, [announce, hydrated, chosen]);
   return (
-    <p role="status" className={cn("text-sm text-muted-foreground", className)}>
-      {chosen ? (
-        <>
-          Saved for your quote: <strong className="font-semibold text-foreground">{chosen === "day" ? "a day ride" : "a night ride"}</strong>. You&apos;ll pick the exact date and time when you request it.
-        </>
-      ) : (
-        <>No preference yet. Choose above, or click the sun or the moon in the sky.</>
+    <>
+      <p className={cn("text-sm text-muted-foreground", className)}>
+        {chosen ? (
+          <>
+            Saved for your quote: <strong className="font-semibold text-foreground">{chosen === "day" ? "a day ride" : "a night ride"}</strong>. You&apos;ll pick the exact date and time when you request it.
+          </>
+        ) : (
+          <>No preference yet. Choose above, or click the sun or the moon in the sky.</>
+        )}
+      </p>
+      {announce && (
+        <p role="status" className="sr-only">
+          {said}
+        </p>
       )}
-    </p>
+    </>
   );
 }

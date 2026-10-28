@@ -7,16 +7,19 @@ import { paintMoon, paintStars } from "./sky-paint";
  * Runs the living sky behind the site. Everything follows ONE number, the
  * phase: 0 = day, 1 = night. Changing period animates it (day → sunset →
  * twilight → night, or back through sunrise), and every layer reads it: the
- * gradient, the sun (it sets and rises), the moon, the stars, the rays, the
- * clouds' colours and light, the bus photos' grade (--night), and the page's
- * day or night theme (html[data-sky], switched halfway).
+ * gradient keyframes, the sun (it sets and rises), the moon, the stars, the
+ * rays, the clouds' colours and light, the bus photo's light (--night on
+ * [data-sky-follow]), and the page's day or night theme (html[data-sky],
+ * switched halfway inside a View Transition).
  *
- * Cost control: the clouds are the only per-frame work (a small shader at a
- * fraction of the resolution), drawn at SKY.idleFps while only the wind moves
- * them and at full rate while scrolling or changing; nothing is drawn while
- * the intro film covers the sky or the tab is hidden. Reduced motion: no
- * drift, no parallax, no twinkle, no shooting stars; a period change is a
- * short crossfade. No React: nothing re-renders.
+ * Cost control: during a change only opacity and a few transforms move in the
+ * DOM; per-frame CSS variables go only to [data-sky-follow] elements, never
+ * to html (that restyles the whole page). The clouds are the only per-frame
+ * drawing (a small shader, its buffer capped), at SKY.idleFps while only the
+ * wind moves them and at full rate while scrolling or changing; nothing is
+ * drawn while the intro film covers the sky or the tab is hidden. Reduced
+ * motion: the sun and moon stay put and fade (no travel), no drift, parallax,
+ * twinkle or shooting stars; a change is a short crossfade. No React.
  */
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
@@ -44,6 +47,9 @@ export type SkyEngineOptions = {
   onPick: (period: Period) => void;
 };
 
+/** Browser chrome (mobile address bar) colour per theme: the top of that sky. */
+const THEME_COLOUR: Record<Period, string> = { day: SKY_KEYS[0]?.top ?? "#2f74d0", night: SKY_KEYS.at(-1)?.top ?? "#040a26" };
+
 export class SkyEngine {
   private readonly layers: Layers;
   /** The gradient keyframe layers, the sun's warm (sunset) versions, the moon's halo: all faded by opacity only. */
@@ -59,18 +65,22 @@ export class SkyEngine {
   private duration = 0;
   private raf = 0;
   private lastDraw = 0;
+  private lastFrame = 0;
+  /** Seconds of wind the clouds have drifted (only advances while they're drawn: no jump after a hidden tab). */
+  private skyTime = 0;
   private dirty = true;
   private scroll = 0;
   private visible = true;
   private reduced: boolean;
   private readonly tier: "desktop" | "phone" | "low";
   private size = { w: 0, h: 0 };
+  /** The star canvases' painted size (repainted only when the width changes or the height grows). */
+  private starsFor = { w: 0, h: 0 };
   private shootingTimer = 0;
   private observer: IntersectionObserver | null = null;
   private resizeTimer = 0;
   private hoverFrame = 0;
   private readonly motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-  private readonly startTime = performance.now();
 
   constructor(
     private readonly root: HTMLElement,
@@ -102,11 +112,18 @@ export class SkyEngine {
 
   start() {
     const { clouds } = this.layers;
-    if (clouds) this.clouds = SkyClouds.create(clouds, this.tier === "desktop" ? 4 : 3);
-    if (!this.clouds) clouds?.remove();
+    if (clouds) {
+      this.clouds = SkyClouds.create(clouds, this.tier === "desktop" ? 4 : 3);
+      // The GPU can drop the context (driver reset, memory pressure, a backgrounded tab on a phone):
+      // stop drawing, and rebuild the clouds when the browser hands it back.
+      clouds.addEventListener("webglcontextlost", this.onContextLost);
+      clouds.addEventListener("webglcontextrestored", this.onContextRestored);
+    }
+    if (!this.clouds) clouds?.style.setProperty("display", "none");
     this.measure();
     if (this.layers.moonCanvas) paintMoon(this.layers.moonCanvas);
     this.apply(this.phase);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOUR[this.phase < 0.5 ? "day" : "night"]);
     this.root.dataset.ready = "";
     window.addEventListener("resize", this.onResize);
     window.addEventListener("scroll", this.onScroll, { passive: true });
@@ -114,19 +131,37 @@ export class SkyEngine {
     document.addEventListener("click", this.onClick);
     document.addEventListener("pointermove", this.onPointerMove, { passive: true });
     this.motionQuery.addEventListener("change", this.onMotion);
-    // The intro film covers the sky while it plays: no work until the page below it shows.
-    const main = document.querySelector("#main");
-    if (main) {
-      this.observer = new IntersectionObserver((entries) => {
-        this.visible = entries.some((e) => e.isIntersecting);
-        this.root.toggleAttribute("data-paused", !this.visible);
-        this.dirty = true;
-        this.schedule();
-      });
-      this.observer.observe(main);
-    }
+    this.observeMain();
     this.onScroll();
     this.scheduleShootingStar();
+    this.schedule();
+  }
+
+  /**
+   * The intro film covers the sky while it plays: no work until the page below
+   * it shows. Watches this page's #main; call again after a navigation (each
+   * page renders its own), and a removed #main is swapped for the new one.
+   */
+  observeMain() {
+    this.observer?.disconnect();
+    this.observer = null;
+    const main = document.querySelector("#main");
+    this.visible = true;
+    this.root.removeAttribute("data-paused");
+    if (!main) return;
+    this.observer = new IntersectionObserver((entries) => {
+      if (entries.some((e) => !e.target.isConnected)) {
+        // The page changed under us (client-side navigation, an error reset): watch its new #main.
+        queueMicrotask(() => this.observeMain());
+        return;
+      }
+      this.visible = entries.some((e) => e.isIntersecting);
+      this.root.toggleAttribute("data-paused", !this.visible);
+      this.dirty = true;
+      this.schedule();
+    });
+    this.observer.observe(main);
+    this.dirty = true;
     this.schedule();
   }
 
@@ -149,7 +184,7 @@ export class SkyEngine {
     this.schedule();
   }
 
-  /** Current position on the day → night line (tests and the UI read it). */
+  /** Current position on the day → night line. */
   get value() {
     return this.phase;
   }
@@ -165,8 +200,12 @@ export class SkyEngine {
     document.removeEventListener("click", this.onClick);
     document.removeEventListener("pointermove", this.onPointerMove);
     this.motionQuery.removeEventListener("change", this.onMotion);
+    this.layers.clouds?.removeEventListener("webglcontextlost", this.onContextLost);
+    this.layers.clouds?.removeEventListener("webglcontextrestored", this.onContextRestored);
     this.observer?.disconnect();
-    this.clouds?.destroy();
+    // Not loseContext(): React may mount the same canvas again (StrictMode, a remount), and a lost context can't be reused.
+    this.clouds?.release();
+    this.clouds = null;
     document.body.style.removeProperty("cursor");
     delete this.html.dataset.skyChanging;
   }
@@ -175,8 +214,15 @@ export class SkyEngine {
   // The phase → every layer
   // ---------------------------------------------------------------------------
 
-  /** Sun and moon centres (fractions of the screen) at a phase. */
+  /**
+   * Sun and moon centres (fractions of the screen) at a phase, and how much of
+   * each is up. Reduced motion: they never travel (the sun at its day place,
+   * the moon at its night place); only their visibility changes.
+   */
   private bodies(p: number) {
+    const sunUp = 1 - smooth(0.5, 0.66, p);
+    const moonUp = smooth(0.42, 0.8, p);
+    if (this.reduced) return { sun: SKY.sun.day, moon: SKY.moon.night, sunUp, moonUp };
     const set = easeInOut(clamp01(p / 0.62)); // the sun is down by early twilight
     const sun = {
       x: lerp(SKY.sun.day.x, SKY.sun.set.x, set),
@@ -184,18 +230,17 @@ export class SkyEngine {
     };
     const rise = easeInOut(clamp01((p - 0.35) / 0.65));
     const moon = { x: lerp(SKY.moon.low.x, SKY.moon.night.x, rise), y: lerp(SKY.moon.low.y, SKY.moon.night.y, rise) };
-    return { sun, moon, sunUp: 1 - smooth(0.5, 0.66, p), moonUp: smooth(0.42, 0.8, p) };
+    return { sun, moon, sunUp, moonUp };
   }
 
   /**
-   * Where the sky's colours go. Every frame of a change: only the sky layer and
-   * the few elements that follow it (data-sky-follow: the bus photo's panel).
-   * The page root (html) gets them only at rest: a custom property changed on
-   * html makes the browser restyle the WHOLE page, which every frame would cost
-   * smoothness.
+   * The sky's colours for what follows it. Every frame of a change: only the
+   * [data-sky-follow] elements (the bus photo's panel). The page root (html)
+   * gets them only at rest: a custom property changed on html restyles the
+   * WHOLE page, which every frame would cost smoothness.
    */
   private paint(c: ReturnType<typeof skyColors>, p: number, everywhere: boolean) {
-    const targets: HTMLElement[] = [this.root, ...document.querySelectorAll<HTMLElement>("[data-sky-follow]")];
+    const targets: HTMLElement[] = [...document.querySelectorAll<HTMLElement>("[data-sky-follow]")];
     if (everywhere) targets.push(this.html);
     const vars: [string, string][] = [
       ["--sky-top", css(c.top)],
@@ -229,6 +274,9 @@ export class SkyEngine {
       const warm = smooth(0.15, 0.45, p).toFixed(3);
       for (const el of this.sunWarm) el.style.opacity = warm;
     }
+    // Nothing turns or twinkles while it can't be seen (no compositor work for invisible layers).
+    this.root.toggleAttribute("data-sunless", sunUp === 0);
+    this.root.toggleAttribute("data-starry", p > 0.5);
     if (rays) rays.style.opacity = ((1 - smooth(0.3, 0.58, p)) * 0.55 + smooth(0.2, 0.42, p) * (1 - smooth(0.42, 0.6, p)) * 0.4).toFixed(3);
     if (moonEl) {
       moonEl.style.setProperty("--x", String(moon.x));
@@ -237,7 +285,11 @@ export class SkyEngine {
       moonEl.style.opacity = (0.32 + 0.68 * moonUp).toFixed(3);
       if (this.moonGlow) this.moonGlow.style.opacity = moonUp.toFixed(3);
     }
-    if (stars) stars.style.opacity = smooth(0.55, 0.95, p).toFixed(3);
+    if (stars) {
+      // Painted the first time the sky heads for night (none of their memory by day).
+      if (p > 0.4) this.ensureStars();
+      stars.style.opacity = smooth(0.55, 0.95, p).toFixed(3);
+    }
     this.uniforms = { colors: c, source: p < 0.55 ? sun : moon, glow: p < 0.55 ? 0.9 * sunUp : 0.5 * moonUp };
   }
 
@@ -250,13 +302,24 @@ export class SkyEngine {
    * every element instead drops frames). Without View Transitions, or with
    * reduced motion: an instant flip, at mid-twilight.
    */
-  private flipTheme(theme: "day" | "night") {
+  private flipTheme(theme: Period) {
     const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
     const flip = () => {
       this.html.dataset.sky = theme;
+      document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOUR[theme]);
     };
     if (this.duration > 0 && !this.reduced && this.visible && !document.hidden && doc.startViewTransition) doc.startViewTransition(flip);
     else flip();
+  }
+
+  /** Paint the star field if it isn't painted for this size yet. */
+  private ensureStars() {
+    const { starCanvases } = this.layers;
+    if (!starCanvases.length) return;
+    // A phone's toolbar showing/hiding changes the height: repaint only if it grew past what's painted.
+    if (this.starsFor.w === this.size.w && this.starsFor.h >= this.size.h) return;
+    paintStars(starCanvases, this.tier === "desktop" ? SKY.stars.desktop : SKY.stars.phone);
+    this.starsFor = { ...this.size };
   }
 
   // ---------------------------------------------------------------------------
@@ -284,13 +347,16 @@ export class SkyEngine {
       this.dirty = true;
     }
     const active = this.visible && !document.hidden;
+    const drifting = !this.reduced;
+    // The wind only blows while the clouds are on screen (a capped step: no jump after a pause).
+    if (active && drifting) this.skyTime += Math.min(0.1, Math.max(0, (now - (this.lastFrame || now)) / 1000));
+    this.lastFrame = now;
     if (active && this.clouds && this.uniforms) {
-      const drifting = !this.reduced;
       const due = now - this.lastDraw >= 1000 / SKY.idleFps - 2;
       if (this.dirty || (drifting && due)) {
         const { colors, source, glow } = this.uniforms;
         this.clouds.draw({
-          time: drifting ? (now - this.startTime) / 1000 : 0,
+          time: drifting ? this.skyTime : 0,
           scroll: this.reduced ? 0 : this.scroll,
           lit: colors.cloudLit,
           shade: colors.cloudShade,
@@ -304,7 +370,8 @@ export class SkyEngine {
       }
     }
     // Keep going while there's motion to show (a change, or the wind); otherwise sleep until poked.
-    if (changing || (active && this.clouds && !this.reduced)) this.schedule();
+    if (changing || (active && this.clouds && drifting)) this.schedule();
+    else this.lastFrame = 0;
   };
 
   // ---------------------------------------------------------------------------
@@ -314,8 +381,8 @@ export class SkyEngine {
   private measure() {
     const r = this.root.getBoundingClientRect();
     this.size = { w: r.width, h: r.height };
-    this.clouds?.resize(SKY.cloudScale[this.tier]);
-    if (this.layers.starCanvases.length) paintStars(this.layers.starCanvases, this.tier === "desktop" ? SKY.stars.desktop : SKY.stars.phone);
+    this.clouds?.resize(SKY.cloudScale[this.tier], SKY.cloudMaxPixels[this.tier]);
+    if (this.starsFor.w || this.phase > 0.4) this.ensureStars();
     this.dirty = true;
   }
 
@@ -344,6 +411,21 @@ export class SkyEngine {
 
   private readonly onMotion = () => {
     this.reduced = this.motionQuery.matches;
+    this.apply(this.phase); // the sun and moon go to (or leave) their fixed places
+    this.dirty = true;
+    this.schedule();
+  };
+
+  private readonly onContextLost = (e: Event) => {
+    e.preventDefault(); // ask for it back
+    this.clouds = null;
+  };
+
+  private readonly onContextRestored = () => {
+    const { clouds } = this.layers;
+    if (!clouds) return;
+    this.clouds = SkyClouds.create(clouds, this.tier === "desktop" ? 4 : 3);
+    this.clouds?.resize(SKY.cloudScale[this.tier], SKY.cloudMaxPixels[this.tier]);
     this.dirty = true;
     this.schedule();
   };

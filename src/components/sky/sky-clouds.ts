@@ -17,12 +17,9 @@ void main() {
   gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
 
+// highp only: at mediump the hash below has no fractional bits left (create() turns clouds off instead).
 const frag = (octaves: number) => `
-#ifdef GL_FRAGMENT_PRECISION_HIGH
 precision highp float;
-#else
-precision mediump float;
-#endif
 varying vec2 vUv;
 uniform vec2 uRes;
 uniform float uTime;
@@ -129,10 +126,11 @@ export class SkyClouds {
     this.loc = Object.fromEntries(UNIFORMS.map((n) => [n, gl.getUniformLocation(program, n)])) as Record<Uniform, WebGLUniformLocation | null>;
   }
 
-  /** Null when WebGL isn't available (the sky then shows without clouds). */
+  /** Null when WebGL (with high-precision fragment shaders) isn't available: the sky then shows without clouds. */
   static create(canvas: HTMLCanvasElement, octaves: number) {
     const gl = canvas.getContext("webgl", { alpha: true, premultipliedAlpha: true, antialias: false, depth: false, stencil: false, powerPreference: "low-power" });
-    if (!gl) return null;
+    if (!gl || gl.isContextLost()) return null;
+    if (!gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT)?.precision) return null;
     const shader = (type: number, src: string) => {
       const s = gl.createShader(type);
       if (!s) return null;
@@ -159,10 +157,13 @@ export class SkyClouds {
     return new SkyClouds(canvas, gl, program);
   }
 
-  /** Match the canvas buffer to its CSS size × scale. */
-  resize(scale: number) {
-    const w = Math.max(16, Math.round(this.canvas.clientWidth * scale));
-    const h = Math.max(16, Math.round(this.canvas.clientHeight * scale));
+  /** Match the canvas buffer to its CSS size × scale, but never more than maxPixels (the shader's cost grows with them). */
+  resize(scale: number, maxPixels: number) {
+    const cssW = Math.max(1, this.canvas.clientWidth);
+    const cssH = Math.max(1, this.canvas.clientHeight);
+    const s = Math.min(scale, Math.sqrt(maxPixels / (cssW * cssH)));
+    const w = Math.max(16, Math.round(cssW * s));
+    const h = Math.max(16, Math.round(cssH * s));
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
       this.canvas.height = h;
@@ -173,7 +174,7 @@ export class SkyClouds {
   draw(u: CloudUniforms) {
     const { gl, loc } = this;
     gl.uniform2f(loc.uRes, this.canvas.width, this.canvas.height);
-    gl.uniform1f(loc.uTime, u.time % 10_000);
+    gl.uniform1f(loc.uTime, u.time);
     gl.uniform1f(loc.uScroll, u.scroll);
     gl.uniform3f(loc.uLit, ...u.lit);
     gl.uniform3f(loc.uShade, ...u.shade);
@@ -186,8 +187,8 @@ export class SkyClouds {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  destroy() {
-    this.gl.deleteProgram(this.program);
-    this.gl.getExtension("WEBGL_lose_context")?.loseContext();
+  /** Free the program; the context stays usable (the same canvas may be mounted again). */
+  release() {
+    if (!this.gl.isContextLost()) this.gl.deleteProgram(this.program);
   }
 }

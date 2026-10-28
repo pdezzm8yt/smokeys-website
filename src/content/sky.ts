@@ -44,8 +44,10 @@ export const SKY = {
   stars: { desktop: 420, phone: 200 },
   /** Seconds between shooting stars at night: a random pause in this range, so they stay rare. */
   shootingStarEvery: [9, 22] as [number, number],
-  /** The clouds are rendered at this fraction of the screen's CSS pixels (they're soft), and capped. */
+  /** The clouds are rendered at this fraction of the screen's CSS pixels (they're soft)… */
   cloudScale: { desktop: 0.5, phone: 0.35, low: 0.28 },
+  /** …and never with more pixels than this (a 5K screen costs the same as a laptop). */
+  cloudMaxPixels: { desktop: 230_000, phone: 70_000, low: 50_000 },
   /** Frames per second while nothing moves but the drift; full rate while scrolling or changing. */
   idleFps: 30,
 } as const;

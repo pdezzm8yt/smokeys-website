@@ -6,7 +6,7 @@ export function FaqList({ faqs }: { faqs: readonly { q: string; a: string }[] })
     <div className="divide-y divide-border rounded-(--radius-card) bg-surface-raised ring-1 ring-border">
       {faqs.map((f, i) => (
         <details key={f.q} name="faq" className="group px-6" open={i === 0}>
-          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-6 py-5 font-semibold transition-colors hover:text-primary [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-6 py-5 font-semibold transition-colors hover:text-gold [&::-webkit-details-marker]:hidden">
             {f.q}
             <span
               aria-hidden="true"

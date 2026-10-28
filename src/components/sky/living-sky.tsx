@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { SKY_KEYS } from "@/content/sky";
 import { getBooking, skyPeriod, subscribeBooking, updateBooking } from "@/lib/booking-store";
@@ -15,24 +16,33 @@ import { SkyEngine } from "./sky-engine";
  */
 export function LivingSky() {
   const ref = useRef<HTMLDivElement>(null);
+  const engine = useRef<SkyEngine | null>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
-    const engine = new SkyEngine(root, skyPeriod(), { onPick: (period) => updateBooking({ period }) });
-    engine.start();
+    const sky = new SkyEngine(root, skyPeriod(), { onPick: (period) => updateBooking({ period }) });
+    engine.current = sky;
+    sky.start();
     let last = skyPeriod();
     const unsubscribe = subscribeBooking(() => {
       const next = skyPeriod(getBooking());
       if (next === last) return;
       last = next;
-      engine.setPeriod(next);
+      sky.setPeriod(next);
     });
     return () => {
       unsubscribe();
-      engine.destroy();
+      sky.destroy();
+      engine.current = null;
     };
   }, []);
+
+  // A new page renders its own #main (the sky pauses under the homepage's intro by watching it).
+  useEffect(() => {
+    engine.current?.observeMain();
+  }, [pathname]);
 
   return (
     <div ref={ref} data-sky-layer aria-hidden="true" className="living-sky pointer-events-none fixed inset-0 -z-10 overflow-hidden">

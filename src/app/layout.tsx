@@ -27,8 +27,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0a10",
-  colorScheme: "dark",
+  // The sky engine updates theme-color to the day or night sky as it changes.
+  themeColor: "#040a26",
+  colorScheme: "light dark",
   viewportFit: "cover",
 };
 

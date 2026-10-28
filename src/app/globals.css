@@ -67,7 +67,7 @@
 :root[data-sky="day"]:not(.theme-night) {
   color-scheme: light;
   --foreground: oklch(0.21 0.04 264);
-  --surface: oklch(1 0 0 / 0.74);
+  --surface: oklch(1 0 0 / 0.8);
   --surface-raised: oklch(1 0 0 / 0.92);
   --muted: oklch(0.3 0.05 264 / 0.06);
   --muted-foreground: oklch(0.43 0.04 264);
@@ -75,7 +75,7 @@
   --input: oklch(0.3 0.05 264 / 0.42);
 
   --primary: oklch(0.78 0.13 80);
-  --gold: oklch(0.5 0.1 72);
+  --gold: oklch(0.47 0.1 72);
   --accent: oklch(0.7 0.12 78);
 
   --ring: oklch(0.52 0.12 74);
@@ -172,6 +172,9 @@
 }
 
 /* The page's day ↔ night theme crossfades (a View Transition started by the sky: GPU-blended snapshots). */
+::view-transition {
+  pointer-events: none; /* clicks reach the page during the crossfade */
+}
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 700ms;
@@ -219,6 +222,12 @@
 .living-sky [data-sky-sun] {
   width: clamp(4rem, 7vw, 6.5rem);
   aspect-ratio: 1;
+  /* Resting places (the engine moves them): right for each theme before it runs, and without JS. */
+  --x: 0.8;
+  --y: 0.15;
+}
+:root:not([data-sky="day"]) .living-sky [data-sky-sun] {
+  opacity: 0;
 }
 .living-sky .sun-disk {
   position: absolute;
@@ -242,10 +251,9 @@
   position: absolute;
   inset: -380%;
   border-radius: 50%;
-  /* Soft, uneven shafts of light (not a starburst): few, wide, faint, blurred. */
-  background: conic-gradient(from 8deg, rgb(255 246 220 / 0.16) 0deg 9deg, transparent 9deg 31deg, rgb(255 246 220 / 0.1) 31deg 44deg, transparent 44deg 77deg, rgb(255 246 220 / 0.14) 77deg 83deg, transparent 83deg 118deg, rgb(255 246 220 / 0.09) 118deg 136deg, transparent 136deg 171deg, rgb(255 246 220 / 0.15) 171deg 178deg, transparent 178deg 214deg, rgb(255 246 220 / 0.1) 214deg 229deg, transparent 229deg 262deg, rgb(255 246 220 / 0.13) 262deg 270deg, transparent 270deg 305deg, rgb(255 246 220 / 0.09) 305deg 322deg, transparent 322deg 360deg);
+  /* Soft, uneven shafts of light (not a starburst): few, faint, feathered edges. No filter: it's drawn once and only rotated. */
+  background: conic-gradient(from 8deg, transparent 6deg, rgb(255 246 220 / 0.16) 9deg 14deg, transparent 17deg, transparent 30deg, rgb(255 246 220 / 0.1) 33deg 42deg, transparent 45deg, transparent 74deg, rgb(255 246 220 / 0.14) 77deg 80deg, transparent 83deg, transparent 116deg, rgb(255 246 220 / 0.09) 119deg 132deg, transparent 135deg, transparent 168deg, rgb(255 246 220 / 0.15) 171deg 175deg, transparent 178deg, transparent 210deg, rgb(255 246 220 / 0.1) 213deg 223deg, transparent 226deg, transparent 258deg, rgb(255 246 220 / 0.13) 261deg 266deg, transparent 269deg, transparent 302deg, rgb(255 246 220 / 0.09) 305deg 317deg, transparent 320deg, transparent 360deg);
   mask-image: radial-gradient(circle, #000 3%, rgb(0 0 0 / 0.45) 18%, transparent 52%);
-  filter: blur(7px);
   animation: rays 90s linear infinite;
 }
 @keyframes rays {
@@ -254,6 +262,12 @@
 .living-sky [data-sky-moon] {
   width: clamp(3.25rem, 5.5vw, 5.25rem);
   aspect-ratio: 1;
+  --x: 0.24;
+  --y: 0.42;
+}
+:root:not([data-sky="day"]) .living-sky [data-sky-moon] {
+  --x: 0.2;
+  --y: 0.17;
 }
 .living-sky .moon-glow {
   position: absolute;
@@ -277,6 +291,13 @@
   box-shadow: 0 0 8px 1px rgb(220 230 255 / 0.6);
   transform-origin: 100% 50%;
   opacity: 0;
+}
+/* Nothing turns or twinkles that can't be seen: the rays while the sun is down, the stars by day. */
+.living-sky[data-sunless] [data-sky-rays] {
+  animation-play-state: paused;
+}
+.living-sky:not([data-starry]) [data-sky-stars] canvas {
+  animation: none;
 }
 /* Nothing animates while the sky is covered (the intro film) or the visitor prefers less motion. */
 .living-sky[data-paused] *,

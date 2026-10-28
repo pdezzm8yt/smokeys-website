@@ -272,7 +272,7 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
         <a
           data-intro-hint="explore"
           href={exploreHref}
-          className="intro-bottom-ui invisible absolute left-1/2 z-30 flex min-h-11 -translate-x-1/2 flex-col items-center gap-0.5 px-4 text-xs font-semibold tracking-[0.2em] text-white/70 uppercase opacity-0 transition-colors hover:text-white short:hidden"
+          className="intro-bottom-ui invisible absolute left-1/2 z-30 flex min-h-11 -translate-x-1/2 flex-col items-center gap-0.5 rounded-full bg-black/45 px-5 py-1.5 text-xs font-semibold tracking-[0.2em] text-white/85 uppercase opacity-0 ring-1 ring-white/15 backdrop-blur-md transition-colors hover:text-white short:hidden"
         >
           Explore
           <ChevronDown aria-hidden="true" className="size-5" />

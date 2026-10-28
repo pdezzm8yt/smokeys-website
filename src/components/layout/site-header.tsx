@@ -36,7 +36,8 @@ export function SiteHeader() {
       data-site-header
       className={cn(
         "fixed inset-x-0 top-0 z-40 h-(--header-h) transition-[background-color,border-color,backdrop-filter] duration-300",
-        scrolled ? "border-b border-border bg-surface-raised backdrop-blur-xl" : "border-b border-transparent",
+        "bg-surface-raised backdrop-blur-xl",
+        scrolled ? "border-b border-border" : "border-b border-transparent",
       )}
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">

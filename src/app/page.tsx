@@ -69,7 +69,7 @@ export default function HomePage() {
             />
             <div className="flex flex-col gap-4">
               <PeriodControl variant="large" />
-              <PeriodStatus />
+              <PeriodStatus announce />
             </div>
           </div>
         </Panel>
