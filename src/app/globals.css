@@ -570,8 +570,7 @@ html:has(dialog[open]) {
  */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
-    html[data-axis="x"] [data-scene] > [data-panel],
-    html[data-axis="x"] footer[data-scene] {
+    html[data-axis="x"] [data-scene] > [data-panel] {
       animation: scene-arrive linear both;
       animation-timeline: view(inline);
       animation-range: entry 0% entry 90%;

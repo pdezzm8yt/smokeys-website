@@ -43,7 +43,7 @@ export function Scene({ id, labelledBy, label, className, panelClassName, wide =
       className={cn(
         "mx-auto max-w-7xl px-4 pt-12 sm:px-6 sm:pt-16 lg:px-8",
         "world:mx-0 world:flex world:h-full world:max-w-none world:flex-none world:items-center world:px-3 world:pt-[calc(var(--header-h)+0.75rem)] world:pb-[calc(var(--road-h)+0.75rem)] sm:world:px-5 lg:world:px-8",
-        wide ? "world:w-max world:min-w-screen" : "world:w-screen",
+        wide ? "world:w-max world:min-w-screen world:justify-center" : "world:w-screen",
         className,
       )}
     >

@@ -3,10 +3,11 @@
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import Image, { getImageProps, type StaticImageData } from "next/image";
-import { useId, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { BusInterior } from "@/components/art/bus-interior";
 import { PartyBus } from "@/components/art/party-bus";
 import { SampleTag } from "@/components/ui/sample-tag";
+import { currentAxis } from "@/components/world/world-axis";
 import { cn } from "@/lib/cn";
 import { duration, enter, exit, spring } from "@/lib/motion";
 import { assets } from "@/content/assets";
@@ -43,7 +44,8 @@ const bodyVariants = {
   open: { height: "auto", opacity: 1, transition: enter(duration.moderate) },
 };
 
-export function MeetTheBus() {
+/** `heading`: the scene's heading (a server-rendered slot), laid out with the photo and the list. */
+export function MeetTheBus({ heading }: { heading?: ReactNode }) {
   const [view, setView] = useState<ViewId>("exterior");
   const [activeId, setActiveId] = useState<string>(exteriorHotspots[0]?.id ?? "");
   // A feature picked on the photo: its hotspot only carries the name, so the text is told to screen
@@ -65,11 +67,13 @@ export function MeetTheBus() {
   };
 
   // The page moves only if the item isn't already on screen (nearest), clear of the header (html's
-  // scroll-padding); smoothly, or instantly with reduced motion (html's scroll-behavior).
+  // scroll-padding); smoothly, or instantly with reduced motion (html's scroll-behavior). Sideways the list
+  // can sit a swipe on from the photo: the world glides along to it (it has no scroll-behavior of its own).
   const reveal = (id: string) => {
     if (toReveal.current !== id) return;
     toReveal.current = null;
-    document.getElementById(`${uid}-feature-${id}`)?.scrollIntoView({ block: "nearest" });
+    const glide = currentAxis() === "x" && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById(`${uid}-feature-${id}`)?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: glide ? "smooth" : "auto" });
   };
 
   const pick = (h: Hotspot, onPhoto: boolean) => {
@@ -98,160 +102,187 @@ export function MeetTheBus() {
   };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
-      <div className="flex flex-col gap-5">
-        <div role="tablist" aria-label="Bus view" className="inline-flex self-start rounded-full bg-muted p-1 ring-1 ring-border">
-          {VIEWS.map((v, i) => {
-            const selected = v.id === view;
-            return (
-              <button
-                key={v.id}
-                ref={(el) => {
-                  tabRefs.current[i] = el;
-                }}
-                role="tab"
-                id={`${uid}-tab-${v.id}`}
-                aria-selected={selected}
-                aria-controls={`${uid}-panel`}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => selectView(v.id)}
-                onKeyDown={(e) => onTabKey(e, i)}
-                className={cn(
-                  "relative min-h-11 rounded-full px-6 text-sm font-semibold transition-colors",
-                  selected ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {selected && (
-                  <m.span layoutId={`${uid}-pill`} transition={spring.snappy} className="absolute inset-0 rounded-full bg-primary" aria-hidden="true" />
-                )}
-                <span className="relative">{v.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div
-          id={`${uid}-panel`}
-          role="tabpanel"
-          data-sky-follow
-          aria-labelledby={`${uid}-tab-${view}`}
-          className="relative overflow-hidden rounded-(--radius-card) bg-[linear-gradient(to_bottom,var(--sky-top),var(--sky-mid)_60%,var(--sky-horizon))] ring-1 ring-border"
-        >
-          <div className="relative aspect-[16/10] w-full">
-            <AnimatePresence mode="wait" initial={false}>
-              <m.div
-                key={view}
-                className="absolute inset-0"
-                initial={{ opacity: 0, scale: 1.04 }}
-                animate={{ opacity: 1, scale: 1, transition: enter(duration.moderate) }}
-                exit={{ opacity: 0, scale: 0.98, transition: exit(duration.moderate) }}
-              >
-                <div className="absolute inset-0 flex items-center justify-center p-[4%]">
-                  <div
-                    className={cn("relative max-h-full max-w-full", current.box)}
-                    style={{
-                      aspectRatio: current.media.src ? `${current.media.src.width} / ${current.media.src.height}` : current.fallbackRatio,
-                    }}
-                  >
-                    {current.media.src ? (
-                      <Image
-                        src={current.media.src}
-                        alt={current.media.alt}
-                        fill
-                        sizes="(min-width: 1024px) 60vw, 92vw"
-                        quality={85}
-                        className={cn("object-contain", current.id === "interior" && "rounded-xl")}
-                      />
-                    ) : (
-                      current.fallback
-                    )}
-                    {current.media.src && <BusLight view={current.id} src={current.media.src} />}
-
-                    {current.hotspots.map((h) => {
-                      const isActive = h.id === active?.id;
-                      return (
-                        <button
-                          key={h.id}
-                          type="button"
-                          onClick={() => pick(h, true)}
-                          aria-pressed={isActive}
-                          style={{ left: `${h.x}%`, top: `${h.y}%` }}
-                          className="group absolute grid size-11 -translate-1/2 place-items-center rounded-full"
-                        >
-                          <span className="sr-only">{h.label}</span>
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "absolute size-8 rounded-full border-2 border-primary/70 motion-safe:animate-ping",
-                              isActive && "border-accent",
-                            )}
-                          />
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "relative size-4 rounded-full bg-primary shadow-[0_0_18px_var(--primary)] ring-4 ring-black/40 transition-transform duration-200 group-hover:scale-125",
-                              isActive && "scale-125 bg-accent shadow-[0_0_22px_var(--accent)]",
-                            )}
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </m.div>
-            </AnimatePresence>
-          </div>
-          <p role="status" className="sr-only">
-            {said}
-          </p>
-          {current.media.placeholder && (
-            <SampleTag label={current.media.src ? "Sample photo · confirm before launch" : "Illustration · real photos coming"} className="absolute top-3 right-3" />
-          )}
-        </div>
-      </div>
-
-      {/* Feature list mirrors the hotspots: big tap targets, readable on phones. */}
-      <div className="flex flex-col gap-3 lg:pt-16">
-        <ul className="flex flex-col gap-2" aria-label={`${current.label} features`}>
-          {current.hotspots.map((h) => {
-            const isActive = h.id === active?.id;
-            return (
-              <li key={h.id} id={`${uid}-feature-${h.id}`} className="scroll-mb-4">
+    // Down the page: the heading, then the photo above the list (beside it from lg). Sideways, along the
+    // world: on tall screens (phones, tablets upright) screen-wide columns, a screen apart (the heading
+    // over the photo, then the list, a swipe on; on short phones the title is smaller, and on very short
+    // ones the heading gets a column of its own); on wider screens from sm, three side by side: the
+    // heading, the photo as tall as the panel allows, the list.
+    <div
+      className={cn(
+        "world:grid world:grid-flow-col world:auto-cols-[calc(100vw-4rem)] world:grid-rows-[auto_1fr] world:gap-x-16 world:gap-y-6",
+        "sm:world:auto-cols-[calc(100vw-7.5rem)] sm:world:gap-x-30 lg:world:auto-cols-[calc(100vw-11rem)] lg:world:gap-x-44",
+        "max-sm:world:[@media(max-height:46rem)]:gap-y-5 max-sm:world:[@media(max-height:41rem)]:grid-rows-[auto]",
+        "sm:[@media(min-aspect-ratio:4/5)]:world:h-full sm:[@media(min-aspect-ratio:4/5)]:world:auto-cols-auto sm:[@media(min-aspect-ratio:4/5)]:world:grid-rows-[100%]",
+        "sm:[@media(min-aspect-ratio:4/5)]:world:gap-x-10 lg:[@media(min-aspect-ratio:4/5)]:world:gap-x-12",
+      )}
+    >
+      {heading}
+      <div className="grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start world:contents">
+        <div className="flex flex-col gap-5 max-sm:world:[@media(max-height:46rem)]:gap-4">
+          <div role="tablist" aria-label="Bus view" className="inline-flex self-start rounded-full bg-muted p-1 ring-1 ring-border">
+            {VIEWS.map((v, i) => {
+              const selected = v.id === view;
+              return (
                 <button
-                  type="button"
-                  onClick={() => pick(h, false)}
-                  aria-expanded={isActive}
+                  key={v.id}
+                  ref={(el) => {
+                    tabRefs.current[i] = el;
+                  }}
+                  role="tab"
+                  id={`${uid}-tab-${v.id}`}
+                  aria-selected={selected}
+                  aria-controls={`${uid}-panel`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => selectView(v.id)}
+                  onKeyDown={(e) => onTabKey(e, i)}
                   className={cn(
-                    "w-full rounded-2xl px-5 py-4 text-start ring-1 transition-[background-color,box-shadow] duration-200",
-                    isActive ? "bg-surface-raised ring-primary/60" : "bg-muted ring-border hover:bg-surface-raised hover:ring-primary/40",
+                    "relative min-h-11 rounded-full px-6 text-sm font-semibold transition-colors",
+                    selected ? "text-primary-foreground" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <span className="flex items-center gap-3 font-semibold">
-                    <span aria-hidden="true" className={cn("size-2 rounded-full", isActive ? "bg-accent" : "bg-primary/60")} />
-                    {h.label}
-                  </span>
-                  <AnimatePresence initial={false}>
-                    {isActive && (
-                      <m.span
-                        key="body"
-                        className="block overflow-hidden"
-                        variants={bodyVariants}
-                        initial="closed"
-                        animate="open"
-                        exit="closed"
-                        onAnimationComplete={(name) => {
-                          if (name === "open") reveal(h.id);
-                        }}
-                      >
-                        <span className="block pt-2 ps-5 text-sm leading-relaxed text-muted-foreground">{h.body}</span>
-                      </m.span>
-                    )}
-                  </AnimatePresence>
+                  {selected && (
+                    <m.span layoutId={`${uid}-pill`} transition={spring.snappy} className="absolute inset-0 rounded-full bg-primary" aria-hidden="true" />
+                  )}
+                  <span className="relative">{v.label}</span>
                 </button>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })}
+          </div>
+
+          <div
+            id={`${uid}-panel`}
+            role="tabpanel"
+            data-sky-follow
+            aria-labelledby={`${uid}-tab-${view}`}
+            className={cn(
+              "relative overflow-hidden rounded-(--radius-card) bg-[linear-gradient(to_bottom,var(--sky-top),var(--sky-mid)_60%,var(--sky-horizon))] ring-1 ring-border",
+              // Side by side (wider screens): as tall as the column under the tabs (4.5rem), never wider than the screen.
+              "sm:[@media(min-aspect-ratio:4/5)]:world:aspect-[16/10] sm:[@media(min-aspect-ratio:4/5)]:world:h-[min(calc(100%-4.5rem),calc((100vw-11rem)*0.625))] sm:[@media(min-aspect-ratio:4/5)]:world:self-start",
+            )}
+          >
+            <div className="relative aspect-[16/10] w-full">
+              <AnimatePresence mode="wait" initial={false}>
+                <m.div
+                  key={view}
+                  className="absolute inset-0"
+                  initial={{ opacity: 0, scale: 1.04 }}
+                  animate={{ opacity: 1, scale: 1, transition: enter(duration.moderate) }}
+                  exit={{ opacity: 0, scale: 0.98, transition: exit(duration.moderate) }}
+                >
+                  <div className="absolute inset-0 flex items-center justify-center p-[4%]">
+                    <div
+                      className={cn("relative max-h-full max-w-full", current.box)}
+                      style={{
+                        aspectRatio: current.media.src ? `${current.media.src.width} / ${current.media.src.height}` : current.fallbackRatio,
+                      }}
+                    >
+                      {current.media.src ? (
+                        <Image
+                          src={current.media.src}
+                          alt={current.media.alt}
+                          fill
+                          sizes="(min-width: 1024px) 60vw, 92vw"
+                          quality={85}
+                          className={cn("object-contain", current.id === "interior" && "rounded-xl")}
+                        />
+                      ) : (
+                        current.fallback
+                      )}
+                      {current.media.src && <BusLight view={current.id} src={current.media.src} />}
+
+                      {current.hotspots.map((h) => {
+                        const isActive = h.id === active?.id;
+                        return (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() => pick(h, true)}
+                            aria-pressed={isActive}
+                            style={{ left: `${h.x}%`, top: `${h.y}%` }}
+                            className="group absolute grid size-11 -translate-1/2 place-items-center rounded-full"
+                          >
+                            <span className="sr-only">{h.label}</span>
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "absolute size-8 rounded-full border-2 border-primary/70 motion-safe:animate-ping",
+                                isActive && "border-accent",
+                              )}
+                            />
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                "relative size-4 rounded-full bg-primary shadow-[0_0_18px_var(--primary)] ring-4 ring-black/40 transition-transform duration-200 group-hover:scale-125",
+                                isActive && "scale-125 bg-accent shadow-[0_0_22px_var(--accent)]",
+                              )}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </m.div>
+              </AnimatePresence>
+            </div>
+            <p role="status" className="sr-only">
+              {said}
+            </p>
+            {current.media.placeholder && (
+              <SampleTag label={current.media.src ? "Sample photo · confirm before launch" : "Illustration · real photos coming"} className="absolute top-3 right-3" />
+            )}
+          </div>
+        </div>
+
+        {/* Feature list mirrors the hotspots: big tap targets, readable on phones. */}
+        <div
+          className={cn(
+            "flex flex-col gap-3 lg:pt-16",
+            "world:row-span-2 lg:world:pt-0 max-sm:world:[@media(max-height:41rem)]:row-span-1",
+            "sm:[@media(min-aspect-ratio:4/5)]:world:row-span-1 sm:[@media(min-aspect-ratio:4/5)]:world:w-[22rem] sm:[@media(min-aspect-ratio:4/5)]:world:pt-16",
+          )}
+        >
+          <ul className="flex flex-col gap-2" aria-label={`${current.label} features`}>
+            {current.hotspots.map((h) => {
+              const isActive = h.id === active?.id;
+              return (
+                // Sideways, a reveal lines the item up with the panel's edge (the scene's and panel's padding).
+                <li key={h.id} id={`${uid}-feature-${h.id}`} className="scroll-mb-4 world:scroll-mx-8 sm:world:scroll-mx-15 lg:world:scroll-mx-22">
+                  <button
+                    type="button"
+                    onClick={() => pick(h, false)}
+                    aria-expanded={isActive}
+                    className={cn(
+                      "w-full rounded-2xl px-5 py-4 text-start ring-1 transition-[background-color,box-shadow] duration-200",
+                      isActive ? "bg-surface-raised ring-primary/60" : "bg-muted ring-border hover:bg-surface-raised hover:ring-primary/40",
+                    )}
+                  >
+                    <span className="flex items-center gap-3 font-semibold">
+                      <span aria-hidden="true" className={cn("size-2 rounded-full", isActive ? "bg-accent" : "bg-primary/60")} />
+                      {h.label}
+                    </span>
+                    <AnimatePresence initial={false}>
+                      {isActive && (
+                        <m.span
+                          key="body"
+                          className="block overflow-hidden"
+                          variants={bodyVariants}
+                          initial="closed"
+                          animate="open"
+                          exit="closed"
+                          onAnimationComplete={(name) => {
+                            if (name === "open") reveal(h.id);
+                          }}
+                        >
+                          <span className="block pt-2 ps-5 text-sm leading-relaxed text-muted-foreground">{h.body}</span>
+                        </m.span>
+                      )}
+                    </AnimatePresence>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </div>
     </div>
   );

@@ -4,11 +4,12 @@ import { Scene } from "@/components/world/scene";
 
 /**
  * About Smokey's. The owner's own story isn't in yet: the copy says what goes
- * here (nothing invented), tagged until it arrives.
+ * here (nothing invented), tagged until it arrives. Sideways the panel is only
+ * as wide as its text (the sky showing either side).
  */
 export function AboutScene() {
   return (
-    <Scene id="about" labelledBy="about-title">
+    <Scene id="about" labelledBy="about-title" panelClassName="world:mx-auto world:w-[min(100%,52rem)]">
       <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
         <SectionHeading
           id="about-title"

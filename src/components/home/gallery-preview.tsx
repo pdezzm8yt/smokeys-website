@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { PartyBus } from "@/components/art/party-bus";
 import { SampleTag } from "@/components/ui/sample-tag";
 import { cn } from "@/lib/cn";
@@ -47,7 +47,30 @@ function Media({ item, large = false, sizes }: { item: GalleryItem; large?: bool
   );
 }
 
-export function GalleryPreview({ items }: { items: GalleryItem[] }) {
+/**
+ * A tile's rendered width, for the photo's `sizes`: down the page (short screens) a third or half of the
+ * width; sideways a column of the strip (--tile-w: about 56vh on a large screen, the screen less 5rem on a phone).
+ */
+const TILE_SIZES = "(max-height: 30rem) and (min-width: 768px) 33vw, (max-height: 30rem) 50vw, (min-width: 640px) 56vh, calc(100vw - 5rem)";
+
+/**
+ * Sideways the tiles run down two rows and on along the world, a column at a time (grid-flow-col): a tall
+ * tile fills its column, two short ones share one, and a short one with no partner below it (the next is
+ * tall, or there's none) fills its column too, so no column is left with a hole.
+ */
+function loneTiles(items: GalleryItem[]) {
+  const lone = new Set<string>();
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item || item.tall) continue;
+    const next = items[i + 1];
+    if (next && !next.tall) i++;
+    else lone.add(item.id);
+  }
+  return lone;
+}
+
+export function GalleryPreview({ items, heading }: { items: GalleryItem[]; heading: ReactNode }) {
   const [filter, setFilter] = useState<FilterId>("all");
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const [direction, setDirection] = useState<1 | -1>(1);
@@ -55,6 +78,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
   const triggerRef = useRef<HTMLElement | null>(null);
 
   const visible = filter === "all" ? items : items.filter((i) => i.category === filter);
+  const lone = loneTiles(visible);
   const current = openIndex === null ? undefined : visible[openIndex];
 
   const open = (index: number, trigger: HTMLElement) => {
@@ -89,29 +113,41 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
   });
 
   return (
-    <div className="flex flex-col gap-8">
-      <div role="group" aria-label="Filter photos" className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => {
-          const active = f.id === filter;
-          return (
-            <button
-              key={f.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => setFilter(f.id)}
-              className={cn(
-                "relative min-h-11 rounded-full px-5 text-sm font-semibold ring-1 transition-colors",
-                active ? "text-primary-foreground ring-transparent" : "text-muted-foreground ring-border hover:text-foreground hover:ring-primary/50",
-              )}
-            >
-              {active && <m.span layoutId="gallery-filter" transition={spring.snappy} aria-hidden="true" className="absolute inset-0 rounded-full bg-primary" />}
-              <span className="relative">{f.label}</span>
-            </button>
-          );
-        })}
+    /* Down the page: the heading, the filter, then the grid. Sideways (the scene's panel fills the screen's
+       height): the heading and the filter make a narrow column, and the strip of photos fills the height
+       beside it, its columns sized from that height (--tile-w: the panel's inner height, less the header,
+       the road and the paddings, at 3:4, so a tall tile is 3:4 and a short one about 3:2; never wider than
+       the screen less 5rem, so on a phone the next column always peeks in). */
+    <div className="flex flex-col gap-8 world:h-full world:flex-row world:gap-6 world:[--tile-w:min(calc((100dvh-var(--header-h)-var(--road-h)-6rem)*0.75),calc(100vw-5rem))] sm:world:gap-10">
+      <div className="world:w-38 world:flex-none sm:world:w-64">
+        {heading}
+        <div role="group" aria-label="Filter photos" className="flex flex-wrap gap-2 world:grid sm:world:grid-cols-2">
+          {FILTERS.map((f) => {
+            const active = f.id === filter;
+            return (
+              <button
+                key={f.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setFilter(f.id)}
+                className={cn(
+                  "relative min-h-11 rounded-full px-5 text-sm font-semibold ring-1 transition-colors",
+                  active ? "text-primary-foreground ring-transparent" : "text-muted-foreground ring-border hover:text-foreground hover:ring-primary/50",
+                )}
+              >
+                {active && <m.span layoutId="gallery-filter" transition={spring.snappy} aria-hidden="true" className="absolute inset-0 rounded-full bg-primary" />}
+                <span className="relative">{f.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <m.ul layout className="grid auto-rows-[11rem] grid-cols-2 gap-3 sm:auto-rows-[14rem] md:grid-cols-3 md:gap-4">
+      {/* Sideways: two rows filling the height, flowing on in columns of --tile-w (see loneTiles). */}
+      <m.ul
+        layout
+        className="grid auto-rows-[11rem] grid-cols-2 gap-3 sm:auto-rows-[14rem] md:grid-cols-3 md:gap-4 world:relative world:flex-none world:grid-flow-col world:grid-cols-none world:grid-rows-2 world:auto-cols-(--tile-w)"
+      >
         <AnimatePresence mode="popLayout" initial={false}>
           {visible.map((item, i) => (
             <m.li
@@ -120,7 +156,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
               initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1, transition: enter(duration.moderate) }}
               exit={{ opacity: 0, scale: 0.94, transition: exit(duration.moderate) }}
-              className={cn(item.tall && "row-span-2")}
+              className={cn(item.tall && "row-span-2", lone.has(item.id) && "world:row-span-2")}
             >
               <button
                 type="button"
@@ -128,7 +164,7 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
                 className="group relative block size-full overflow-hidden rounded-2xl ring-1 ring-border"
               >
                 <span className="absolute inset-0 transition-transform duration-500 ease-enter group-hover:scale-105 motion-reduce:group-hover:scale-100">
-                  <Media item={item} sizes="(min-width: 768px) 33vw, 50vw" />
+                  <Media item={item} sizes={TILE_SIZES} />
                 </span>
                 <span className="absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent opacity-80" />
                 <span className="absolute inset-x-3 bottom-3 flex items-end justify-between gap-2 text-start">

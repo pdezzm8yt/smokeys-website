@@ -4,6 +4,7 @@ import {
   ArrowLeft, ArrowRight, Cake, Crown, Gem, GlassWater, Moon, Music, PartyPopper, Sparkles, Trophy, Users, type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { useWorldAxis } from "@/components/world/world-scene";
 import { cn } from "@/lib/cn";
 import type { Occasion, OccasionIcon } from "@/content/occasions";
 import { quoteHref } from "@/content/site";
@@ -20,9 +21,18 @@ function trackPointer(e: PointerEvent<HTMLElement>) {
   e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
 }
 
-export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
+/**
+ * The occasions as a rail: down the page, its own sideways scroller (snapping,
+ * with previous/next buttons). In the sideways world a scroller inside the
+ * world would fight it for every wheel turn and swipe, so there the cards are
+ * one flat row (the world itself moves through them) and the buttons go.
+ */
+export function OccasionsRail({ occasions, className }: { occasions: Occasion[]; className?: string }) {
   const railRef = useRef<HTMLUListElement>(null);
   const [edges, setEdges] = useState({ start: true, end: false });
+  // The rail's shape changes with the world's direction (a flat row sideways, a scroller down the page):
+  // measure again once it has flipped (the resize that flips it comes before the new layout).
+  const axis = useWorldAxis();
 
   const updateEdges = useCallback(() => {
     const el = railRef.current;
@@ -36,7 +46,7 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
     updateEdges();
     window.addEventListener("resize", updateEdges);
     return () => window.removeEventListener("resize", updateEdges);
-  }, [updateEdges]);
+  }, [updateEdges, axis]);
 
   const page = (dir: 1 | -1) => {
     const el = railRef.current;
@@ -46,8 +56,8 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
   };
 
   return (
-    <div className="relative">
-      <div className="mb-6 flex justify-end gap-2">
+    <div className={cn("relative", className)}>
+      <div className="mb-6 flex justify-end gap-2 world:hidden">
         {([-1, 1] as const).map((dir) => {
           const Icon = dir === -1 ? ArrowLeft : ArrowRight;
           const disabled = dir === -1 ? edges.start : edges.end;
@@ -69,12 +79,15 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
       <ul
         ref={railRef}
         onScroll={updateEdges}
-        className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:-mx-8 lg:scroll-px-8 lg:px-8 [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] sm:-mx-6 sm:scroll-px-6 sm:px-6 lg:-mx-8 lg:scroll-px-8 lg:px-8 [&::-webkit-scrollbar]:hidden",
+          "world:m-0 world:snap-none world:overflow-visible world:p-0",
+        )}
       >
         {occasions.map((o, i) => {
           const Icon = ICONS[o.icon];
           return (
-            <li key={o.slug} className="w-[min(78vw,19rem)] shrink-0 snap-start">
+            <li key={o.slug} className="w-[min(78vw,19rem)] shrink-0 snap-start world:snap-align-none">
               <a
                 href={quoteHref}
                 data-action="book"

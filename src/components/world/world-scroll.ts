@@ -49,12 +49,14 @@ export class WorldScroll {
     window.addEventListener("wheel", this.onWheel, { passive: false });
     this.world.addEventListener("pointerdown", this.onPointerDown);
     window.addEventListener("keydown", this.onKeyDown);
+    this.world.addEventListener("focusin", this.onFocusIn);
   }
 
   destroy() {
     window.removeEventListener("wheel", this.onWheel);
     this.world.removeEventListener("pointerdown", this.onPointerDown);
     window.removeEventListener("keydown", this.onKeyDown);
+    this.world.removeEventListener("focusin", this.onFocusIn);
     this.endDrag();
     cancelAnimationFrame(this.frame);
   }
@@ -99,7 +101,9 @@ export class WorldScroll {
     this.last = now;
     const k = 1 - Math.exp(-dt / EASE_MS);
     let next = at + (this.target - at) * k;
-    if (Math.abs(this.target - next) < 0.5) next = this.target;
+    // The last step: within a pixel, or a step too small to move the scroll position (it snaps to
+    // device pixels), lands exactly on the target instead of stopping short of it.
+    if (Math.abs(this.target - next) < 1 || Math.abs(next - at) < 0.5) next = this.target;
     this.world.scrollTo({ left: next, behavior: "instant" });
     this.written = this.world.scrollLeft;
     if (next === this.target || this.written === at) {
@@ -108,6 +112,29 @@ export class WorldScroll {
       return;
     }
     this.frame = requestAnimationFrame(this.tick);
+  };
+
+  // ---------------------------------------------------------------------------
+  // Keyboard focus
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Tabbing to something the world has only partly on screen brings ALL of it
+   * into view (browsers only scroll to a focused element that's entirely off
+   * screen: a card 15px in would stay where it is, its focus ring a sliver).
+   * Only keyboard focus (:focus-visible): a click is on something already seen.
+   */
+  private readonly onFocusIn = (e: FocusEvent) => {
+    if (currentAxis() !== "x" || this.locked()) return;
+    const el = e.target instanceof HTMLElement ? e.target : null;
+    if (!el || !el.matches(":focus-visible") || el === this.world || el.matches("[data-scene], main")) return;
+    const r = el.getBoundingClientRect();
+    const w = this.world.getBoundingClientRect();
+    const margin = Math.min(32, w.width * 0.05);
+    if (r.left >= w.left + margin && r.right <= w.right - margin) return;
+    // Its left edge in view (with a margin), or its right edge if it's narrower than the screen and to the right.
+    const shift = r.right > w.right - margin && r.width < w.width - 2 * margin ? r.right - (w.right - margin) : r.left - (w.left + margin);
+    this.moveTo(this.world.scrollLeft + shift);
   };
 
   // ---------------------------------------------------------------------------
