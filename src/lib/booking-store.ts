@@ -1,12 +1,13 @@
 import { periodForHour, type Period } from "@/content/sky";
 
 /**
- * What the visitor has chosen on the way to a booking: today the day/night
- * preference (picked by clicking the sun or the moon); the booking form will
- * add the bus, package, date, time, passengers… to the same record. Every
- * update is MERGED, so changing one choice never erases another. Kept in this
- * browser (localStorage), so a reload keeps it. No React here: the sky engine
- * and any component can use it.
+ * What the visitor has chosen on the way to a booking: the day/night
+ * preference (picked by clicking the sun or the moon, or in the booking
+ * panel) and the details they fill in (src/components/actions/action-drawer.tsx):
+ * date, pickup, guests, occasion, package, notes. Every update is MERGED, so
+ * changing one choice never erases another. Kept in this browser
+ * (localStorage), so a reload keeps it. No React here: the sky engine and any
+ * component can use it.
  *
  * A preference is not a booking: the visitor still picks the exact date and
  * time, and nothing here says anything is available.
@@ -14,13 +15,21 @@ import { periodForHour, type Period } from "@/content/sky";
 export type BookingPreferences = {
   /** Day or night ride, as chosen by the visitor (absent until they choose). */
   period?: Period;
-  /** Reserved for the booking form (phase 2): kept untouched by anything that only changes `period`. */
+  /** Reserved (one bus today): kept untouched by anything that doesn't set it. */
   vehicle?: string;
+  /** A package's name (src/content/packages.ts). */
   package?: string;
   passengers?: number;
+  /** The ride's date, YYYY-MM-DD (as an <input type="date"> gives it). */
   date?: string;
+  /** Pickup time, HH:MM (24h, as an <input type="time"> gives it). */
   time?: string;
+  /** Where to pick the group up (free text). */
+  pickup?: string;
+  /** The occasion's title (src/content/occasions.ts), or the visitor's own words. */
   eventType?: string;
+  /** Anything else the visitor wants to tell us. */
+  notes?: string;
 };
 
 /** The localStorage key (the pre-paint script in layout.tsx reads it too). */

@@ -3,12 +3,21 @@ import { SampleTag } from "@/components/ui/sample-tag";
 import { nav, quoteHref, site } from "@/content/site";
 import { Logo } from "./logo";
 
+/**
+ * The footer: the end of the homepage's world (its last scene, sideways: a
+ * glass panel filling the screen's height), and the foot of every other page.
+ */
 export function SiteFooter() {
   const { phone, email, serviceArea } = site.contact;
   const year = new Date().getFullYear();
 
   return (
-    <footer data-panel className="glass relative rounded-t-[2rem] border-b-0">
+    <footer
+      id="footer"
+      data-panel
+      data-scene
+      className="glass relative rounded-t-[2rem] border-b-0 world:my-[calc(var(--header-h)+0.75rem)] world:me-3 world:mb-[calc(var(--road-h)+0.75rem)] world:flex world:w-[min(72rem,calc(100vw-1.5rem))] world:flex-none world:items-center world:overflow-y-auto world:rounded-[1.75rem] sm:world:me-5"
+    >
       <div aria-hidden="true" className="absolute inset-x-8 top-0 h-px bg-linear-to-r from-transparent via-primary/70 to-transparent" />
       <div className="mx-auto grid max-w-7xl gap-12 px-4 py-16 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr] lg:px-8">
         <div className="flex flex-col gap-4">

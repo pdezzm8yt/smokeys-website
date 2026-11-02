@@ -9,17 +9,22 @@ gsap.registerPlugin(ScrollTrigger);
 ScrollTrigger.config({ ignoreMobileResize: true });
 
 /**
- * The intro's animation engine: ONE GSAP master timeline, scrubbed by scroll,
- * around ONE continuous film.
+ * The tunnel scene's animation engine: ONE GSAP master timeline, scrubbed by
+ * scroll, around ONE continuous film. The scene is the first part of the
+ * world (src/components/world): nothing ends or loads after it, the world
+ * just carries on.
  *
- *   the roadrunner runs (the camera pushes in) → into the tunnel → the dust
- *   swallows him (the camera charges in, a dust haze peaks) → the bus's
- *   headlights cut through → the bus drives out, the camera settles →
- *   branding → CTAs → the stage unpins and the page scrolls on.
+ *   the roadrunner runs at the tunnel (the camera pushes in) → he runs in and
+ *   the light goes → complete darkness (out of sight, the film jumps to the
+ *   far side of its own swap: the roadrunner has become the bus) → two
+ *   headlights in the dark → the bus's shape → it drives out onto the road,
+ *   the camera settles → branding → CTAs → the camera starts travelling on
+ *   beside it as the world carries on.
  *
- * The stage is pinned with CSS `position: sticky` inside a tall section; one
- * ScrollTrigger maps that section's scroll progress onto the master timeline
- * (with a little scrub smoothing), so scrolling back up plays it all in
+ * The stage is pinned with CSS `position: sticky` inside a long section (wide
+ * in the sideways world, tall where the world falls back to scrolling down);
+ * one ScrollTrigger maps that section's scroll progress onto the master
+ * timeline (with a little scrub smoothing), so scrolling back plays it all in
  * reverse. The FILM provides the movement: it follows the playhead frame by
  * frame (it never plays on its own), through the film's beats
  * (src/content/intro-video.ts), each stretch paced by INTRO.timeline. That is
@@ -27,7 +32,7 @@ ScrollTrigger.config({ ignoreMobileResize: true });
  * scroll jump, in either direction, lands on the right frame.
  *
  * Reduced motion (or Save-Data, or a film that couldn't load): the same story
- * as crossfaded stills on a shorter scroll.
+ * as crossfaded stills (the black still hides the change) on a shorter scroll.
  *
  * Timeline animations are created inside one gsap.context, so `destroy()`
  * reverts every style they wrote. This module (and GSAP) is loaded on demand.
@@ -36,6 +41,11 @@ ScrollTrigger.config({ ignoreMobileResize: true });
 export type IntroOptions = {
   /** Stills and calm crossfades, no film. */
   still: boolean;
+  /**
+   * What scrolls the scene: the world sideways (its scroll container), or the
+   * page downwards (short landscape screens, where the world is a column).
+   */
+  scroller: { axis: "x"; element: HTMLElement } | { axis: "y" };
 };
 
 type At = (targets: gsap.TweenTarget, from: gsap.TweenVars, to: gsap.TweenVars, position: number) => gsap.core.Timeline;
@@ -60,22 +70,29 @@ function mapTime(points: [number, number][], x: number) {
 /** The story on the timeline (units = scroll), from the film's beats (seconds). */
 function storyFor(beats: FilmBeats) {
   const tunnel = T.run;
-  const swallowed = tunnel + T.tunnel;
-  const headlights = swallowed + T.dust;
-  const rest = headlights + T.reveal;
+  const dark = tunnel + T.enter;
+  /** Mid-darkness: the film jumps from `dark` to `lights` here, unseen. */
+  const swap = dark + T.black / 2;
+  const lights = dark + T.black;
+  const emerge = lights + T.lights;
+  const rest = emerge + T.out;
   const brand = rest + T.brandAfterRest;
   const ctas = brand + T.ctaAfterBrand;
-  /** [timeline, film seconds] at each beat: the film follows this line. */
+  const travel = ctas + T.ctaLength;
+  /** [timeline, film seconds] at each beat: the film follows this line (a step at the swap). */
   const film: [number, number][] = [
     [0, 0],
     [tunnel, beats.tunnel],
-    [swallowed, beats.swallowed],
-    [headlights, beats.headlights],
+    [dark, beats.dark],
+    [swap, beats.dark],
+    [swap + 0.001, beats.lights],
+    [lights, beats.lights],
+    [emerge, beats.lights + (beats.rest - beats.lights) * T.lightsShare],
     [rest, beats.rest],
   ];
-  /** Where a moment of the film (seconds) sits on the timeline. */
+  /** Where a moment of the film (seconds) sits on the timeline (the frames the swap skips map onto it). */
   const at = (seconds: number) => mapTime(film.map(([t, s]) => [s, t]), seconds);
-  return { tunnel, swallowed, cover: at(beats.cover), headlights, rest, brand, ctas, end: ctas + T.ctaLength + T.dwell, film, at };
+  return { tunnel, dark, swap, lights, emerge, rest, brand, ctas, travel, end: travel + T.travel, film, at };
 }
 
 export class IntroEngine {
@@ -97,7 +114,7 @@ export class IntroEngine {
   private destroyed = false;
 
   constructor(
-    /** The tall scrolling section (its scroll range drives the timeline). */
+    /** The long scrolling section (its scroll range drives the timeline). */
     private readonly section: HTMLElement,
     /** The pinned stage inside it. */
     private readonly stage: HTMLElement,
@@ -106,7 +123,7 @@ export class IntroEngine {
   ) {
     this.q = gsap.utils.selector(stage) as (selector: string) => HTMLElement[];
     this.ctx = gsap.context(() => {}, stage);
-    if (!film.cut) throw new Error("The intro has no film (no cut has been built).");
+    if (!film.cut) throw new Error("The tunnel scene has no film (no cut has been built).");
     this.beats = film.cut.beats;
     this.story = storyFor(this.beats);
   }
@@ -169,7 +186,7 @@ export class IntroEngine {
     if (this.destroyed || this.refreshing) return;
     const t = this.master?.time() ?? 0;
     if (!this.opts.still && this.film.ready) this.seek(mapTime(this.story.film, t));
-    // The header comes in with the branding.
+    // The branding is in: other parts of the page (the header's home link state, tests) can tell.
     const revealed = t >= this.story.brand - 0.05;
     if (revealed !== this.revealed) {
       this.revealed = revealed;
@@ -180,6 +197,18 @@ export class IntroEngine {
   // ---------------------------------------------------------------------------
   // Public API
   // ---------------------------------------------------------------------------
+
+  /** Where the section is along the scroll, and how far it scrolls (px). */
+  private measure() {
+    const { scroller } = this.opts;
+    if (scroller.axis === "x") {
+      const w = scroller.element;
+      const start = this.section.getBoundingClientRect().left - w.getBoundingClientRect().left + w.scrollLeft;
+      return { at: w.scrollLeft, start, range: this.section.offsetWidth - w.clientWidth };
+    }
+    const start = this.section.getBoundingClientRect().top + window.scrollY;
+    return { at: window.scrollY, start, range: this.section.offsetHeight - window.innerHeight };
+  }
 
   /**
    * Build the timeline (measured while nothing moves) and hook it to the
@@ -192,17 +221,18 @@ export class IntroEngine {
     this.ctx.add(() => {
       const tl = this.opts.still ? this.stillTimeline() : this.cinematicTimeline();
       this.master = tl; // sync() reads the playhead from here
-      // Opened part-way down (deep link, restored scroll): start there. Set before the trigger
+      // Opened part-way along (deep link, restored position): start there. Set before the trigger
       // exists, so its scrub has nothing to catch up on (it would play the story up to here).
-      const top = this.section.getBoundingClientRect().top + window.scrollY;
-      const range = this.section.offsetHeight - window.innerHeight;
-      tl.progress(gsap.utils.clamp(0, 1, range > 0 ? (window.scrollY - top) / range : 0));
+      const { at, start, range } = this.measure();
+      tl.progress(gsap.utils.clamp(0, 1, range > 0 ? (at - start) / range : 0));
+      const { scroller } = this.opts;
       this.trigger = ScrollTrigger.create({
         trigger: this.section,
-        start: "top top",
-        end: "bottom bottom",
+        ...(scroller.axis === "x"
+          ? { scroller: scroller.element, horizontal: true, start: "left left", end: "right right" }
+          : { start: "top top", end: "bottom bottom" }),
         animation: tl,
-        // The timeline eases toward the scrollbar: smooth on wheel steps and touch flicks alike.
+        // The timeline eases toward the scroll position: smooth on wheel steps and touch flicks alike.
         scrub: this.opts.still ? 0.4 : INTRO.scroll.scrub,
         invalidateOnRefresh: true,
         onRefreshInit: () => {
@@ -220,7 +250,7 @@ export class IntroEngine {
     return this.landed();
   }
 
-  /** Put the DOM and the film back exactly as the page started (unmount). */
+  /** Put the DOM and the film back exactly as the page started (unmount, or the world changing axis). */
   destroy() {
     this.destroyed = true;
     if (this.seeking) this.film.video?.removeEventListener("seeked", this.seeking.onSeeked);
@@ -235,7 +265,7 @@ export class IntroEngine {
   }
 
   // ---------------------------------------------------------------------------
-  // The master timeline (units = scroll: the whole thing spans the intro's scroll length)
+  // The master timeline (units = scroll: the whole thing spans the scene's scroll length)
   // ---------------------------------------------------------------------------
 
   /**
@@ -257,28 +287,24 @@ export class IntroEngine {
     const s = this.story;
     const { tl, at } = this.timeline("power2.inOut");
     const camera = q("[data-camera]");
-    const haze = q('[data-fx="haze"]');
     const C = INTRO.camera;
 
-    // 1 ── Scroll starts: the hint and wordmark go, the camera eases in on the runner ──
-    at(q('[data-intro-hint="scroll"]'), { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: 10, duration: 0.25, ease: "power1.out" }, 0);
-    at(q("[data-intro-wordmark]"), { autoAlpha: 1, yPercent: 0 }, { autoAlpha: 0, yPercent: -60, duration: 0.5, ease: "power2.in" }, 0.05);
+    // 1 ── Movement starts: the hint goes, the camera eases in on the runner as the tunnel grows ──
+    at(q('[data-intro-hint="scroll"]'), { autoAlpha: 1, x: 0 }, { autoAlpha: 0, x: 12, duration: 0.25, ease: "power1.out" }, 0);
     at(camera, { scale: 1 }, { scale: C.push, duration: s.tunnel, ease: "power1.inOut" }, 0);
     this.caption(at);
 
-    // 2 ── Into the tunnel and the dust: the camera charges in with him, a haze gathers ──
-    at(camera, { scale: C.push }, { scale: C.charge, duration: s.cover - s.tunnel, ease: "power2.in" }, s.tunnel);
-    const hazeIn = s.swallowed - 0.35;
-    at(haze, { autoAlpha: 0 }, { autoAlpha: INTRO.haze, duration: s.cover - hazeIn, ease: "power2.in" }, hazeIn);
+    // 2 ── Into the tunnel: the camera charges in with him and the black closes over everything ──
+    at(camera, { scale: C.push }, { scale: C.charge, duration: s.dark - s.tunnel, ease: "power2.in" }, s.tunnel);
+    this.darkness(at);
 
-    // 3 ── The headlights cut through: the haze thins, the camera settles on the bus ──
-    at(haze, { autoAlpha: INTRO.haze }, { autoAlpha: 0, duration: s.headlights + 0.5 - s.cover, ease: "power1.out" }, s.cover);
-    at(camera, { scale: C.charge }, { scale: 1, duration: s.rest - s.headlights, ease: "power3.out" }, s.headlights);
+    // 3 ── Headlights in the dark, the bus's shape, then it drives out: the camera settles on it ──
+    at(camera, { scale: C.charge }, { scale: 1, duration: s.rest - s.lights, ease: "power3.out" }, s.lights);
     this.glows(at);
 
-    // 4 ── Branding once the film has come to rest; the CTAs come last ──
+    // 4 ── Branding once the bus is out; the CTAs; the camera starts travelling on beside it ──
     this.brandAndCtas(at, false);
-    this.handoff(at);
+    at(camera, { xPercent: 0 }, { xPercent: -C.travel * 100, duration: s.end - s.travel, ease: "power1.in" }, s.travel);
     return tl;
   }
 
@@ -287,24 +313,33 @@ export class IntroEngine {
     const q = this.q;
     const s = this.story;
     const { tl, at } = this.timeline("power1.inOut");
-    at(q('[data-intro-hint="scroll"], [data-intro-wordmark]'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.3 }, 0);
+    at(q('[data-intro-hint="scroll"]'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.3 }, 0);
     this.caption(at);
-    at(q('[data-still="cover"]'), { opacity: 0 }, { opacity: 1, duration: 0.8 }, s.swallowed - 0.6);
-    at(q('[data-still="rest"]'), { opacity: 0 }, { opacity: 1, duration: 0.8 }, s.headlights);
+    this.darkness(at);
+    // The bus is first seen at rest, out on the road: it comes up out of the black.
+    at(q('[data-still="rest"]'), { opacity: 0 }, { opacity: 1, duration: 0.05 }, s.swap);
     this.glows(at);
     this.brandAndCtas(at, true);
-    this.handoff(at);
     return tl;
   }
 
   /**
-   * A last beat to take it in before the stage unpins: the bottom of the
-   * stage fades into the page's background, so the film flows into the
-   * section below instead of ending on a hard edge.
+   * The tunnel's black: it closes over everything as he runs in (complete at
+   * the film's darkest frame), holds while the film jumps to the far side of
+   * its own swap, then lifts slowly — the bus's headlights are the brightest
+   * thing in the dark, so they come through first, then its shape. Nothing of
+   * the swap is ever on screen.
    */
-  private handoff(at: At) {
-    const { end } = this.story;
-    at(this.q("[data-stage-fade]"), { opacity: 0 }, { opacity: 1, duration: T.dwell, ease: "power1.in" }, end - T.dwell);
+  private darkness(at: At) {
+    const s = this.story;
+    const D = INTRO.darkness;
+    const black = this.q('[data-fx="dark"]');
+    const from = s.tunnel + (s.dark - s.tunnel) * D.from;
+    at(black, { opacity: 0 }, { opacity: 1, duration: s.dark - from, ease: "power2.in" }, from);
+    // Two headlights in the dark first (the brightest thing in the frame comes through), then the bus.
+    const glimpse = s.lights + (s.emerge - s.lights) * D.glimpseAt;
+    at(black, { opacity: 1 }, { opacity: D.glimpse, duration: glimpse - s.lights, ease: "power1.out" }, s.lights);
+    at(black, { opacity: D.glimpse }, { opacity: 0, duration: s.emerge - glimpse, ease: "power2.in" }, glimpse);
   }
 
   private caption(at: At) {
@@ -316,7 +351,8 @@ export class IntroEngine {
   /**
    * The glow around a banded film follows the story: each one fades in over
    * the one before it, finishing as the film reaches the moment it was taken
-   * from. Opacity only; invisible behind a film that fills the frame.
+   * from (frames inside the darkness map onto it, under the black). Opacity
+   * only; invisible behind a film that fills the frame.
    */
   private glows(at: At) {
     const times = frameTimes(this.beats);
@@ -335,8 +371,6 @@ export class IntroEngine {
     const q = this.q;
     const { brand, ctas } = this.story;
     const length = T.ctaLength;
-    // Nothing left to skip once the branding is in: gone before the header returns over its spot.
-    at(q('[data-intro-hint="skip"]'), { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.2, ease: "power1.out" }, brand - 0.3);
     // The scrim that keeps the headline readable over the footage comes in just ahead of it.
     at(q("[data-copy-scrim]"), { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power1.out" }, brand - 0.25);
     // opacity (not autoAlpha): the H1 stays in the accessibility tree throughout.
@@ -348,6 +382,5 @@ export class IntroEngine {
     );
     // autoAlpha: invisible (and out of the Tab order) until they come in.
     at(q("[data-bus-ctas]"), { autoAlpha: 0, y: still ? 0 : 16 }, { autoAlpha: 1, y: 0, duration: length * 0.85, ease: "power3.out" }, ctas);
-    at(q('[data-intro-hint="explore"]'), { autoAlpha: 0 }, { autoAlpha: 1, duration: length * 0.6 }, ctas + length * 0.5);
   }
 }

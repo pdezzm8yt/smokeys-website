@@ -40,6 +40,8 @@ export function PackagesGrid({ packages }: { packages: Package[] }) {
                 <div className="mt-auto pt-8">
                   <ButtonLink
                     href={quoteHref}
+                    data-action="quote"
+                    data-book-package={p.name}
                     variant={p.featured ? "primary" : "secondary"}
                     className="w-full"
                     aria-label={`Request pricing for ${p.name}`}

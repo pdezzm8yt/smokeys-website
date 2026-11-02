@@ -29,12 +29,22 @@ export type FilmCut = "portrait" | "wide";
 export type FilmBeats = {
   /** The roadrunner runs into the tunnel: the light starts to go. */
   tunnel: number;
+  /**
+   * Deep in the tunnel, the darkest frame before anything else shows: where
+   * the darkness closes over him (the roadrunner becomes the bus out of sight).
+   */
+  dark: number;
   /** The dust has swallowed him: nothing of him is left. */
   swallowed: number;
   /** The thickest dust: nothing at all is visible (where the roadrunner becomes the bus). */
   cover: number;
   /** The bus's headlights cut through the dust. */
   headlights: number;
+  /**
+   * The far side of the darkness: the darkest frame where only the bus's
+   * headlights (and marker lights) show. The film resumes here once it's black.
+   */
+  lights: number;
   /**
    * Where the film comes to rest under the headline and the buttons: the bus
    * fully in frame. Also the still of the finished hero (no JS, Skip, return visits).
@@ -74,14 +84,14 @@ export const introFilm = {
     portrait: {
       file: "film-portrait",
       trim: { end: 11.65 },
-      beats: { tunnel: 4.6, swallowed: 7.7, cover: 7.95, headlights: 8.3, rest: 11.5 },
+      beats: { tunnel: 4.6, dark: 5.45, swallowed: 7.7, cover: 7.95, headlights: 8.3, lights: 8.65, rest: 11.5 },
       focus: { x: 0.5, y: 0.5 },
       minVisible: { x: 0.75, y: 0.82 },
     },
     wide: {
       file: "film-wide",
       // Placeholders until the 16:9 render exists: set them from its contact sheet.
-      beats: { tunnel: 4.6, swallowed: 7.7, cover: 7.95, headlights: 8.3, rest: 11.5 },
+      beats: { tunnel: 4.6, dark: 5.45, swallowed: 7.7, cover: 7.95, headlights: 8.3, lights: 8.65, rest: 11.5 },
       focus: { x: 0.5, y: 0.55 },
       minVisible: { x: 0.62, y: 0.7 },
     },

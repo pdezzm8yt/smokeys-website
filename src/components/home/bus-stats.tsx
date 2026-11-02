@@ -38,12 +38,12 @@ function Counter({ value, suffix = "" }: { value: number; suffix?: string }) {
   );
 }
 
+/** The bus at a glance (the Features scene's numbers): counted up as they come into view. */
 export function BusStats({ facts }: { facts: Fact[] }) {
   const anySample = facts.some((f) => f.sample);
 
   return (
-    <section aria-label="Smokey's at a glance" className="relative mx-auto max-w-7xl px-4 pt-12 sm:px-6 lg:px-8">
-      <div data-panel className="glass rounded-[1.75rem] px-6 py-10">
+    <>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-8 md:grid-cols-4">
           {facts.map((fact) => (
             <div key={fact.label} className="flex flex-col-reverse gap-1 text-center md:border-s md:border-border md:first:border-s-0">
@@ -59,7 +59,6 @@ export function BusStats({ facts }: { facts: Fact[] }) {
             <SampleTag label="Sample specs · confirm before launch" />
           </div>
         )}
-      </div>
-    </section>
+    </>
   );
 }

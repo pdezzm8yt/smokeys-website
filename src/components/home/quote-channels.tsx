@@ -1,35 +1,44 @@
 "use client";
 
-import { Mail, MessageSquare, Phone } from "lucide-react";
+import { CalendarDays, Mail, MessageSquare, Phone, Ticket } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { useBooking } from "@/components/sky/use-booking";
-import { site } from "@/content/site";
+import { quoteHref, site } from "@/content/site";
+import { bookingLinks } from "@/lib/booking-message";
 
 /**
- * How to request a quote until the booking form ships: call, text or email.
- * The text and email come pre-filled with what the visitor has chosen so far
- * (today: day or night), plus blanks for what we need, so the choice reaches
- * the business without being typed again.
+ * The Contact scene's actions. Book and Schedule open the booking panel over
+ * the world (ActionDrawer: without JS they're plain links to this scene); call,
+ * text and email go straight to Smokey's, the text and email pre-filled with
+ * whatever the visitor has filled in so far (the booking panel, the day/night
+ * choice), so nothing has to be typed twice.
  */
 export function QuoteChannels() {
-  const { phone, email } = site.contact;
-  const { chosen } = useBooking();
-  const ride = chosen === "day" ? "a day ride" : chosen === "night" ? "a night ride" : "a ride";
-  const message = `Hi Smokey's! I'd like a quote for ${ride}.\nDate:\nPickup time and place:\nGuests:\nOccasion:`;
-  const sms = `${phone.href.replace("tel:", "sms:")}?body=${encodeURIComponent(message)}`;
-  const mail = `${email.href}?subject=${encodeURIComponent(`Quote request: ${ride}`)}&body=${encodeURIComponent(message)}`;
+  const { phone } = site.contact;
+  const { prefs } = useBooking();
+  const links = bookingLinks(prefs);
 
   return (
-    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-      <ButtonLink href={phone.href} size="lg">
-        <Phone aria-hidden="true" className="size-5" /> Call {phone.display}
-      </ButtonLink>
-      <ButtonLink href={sms} size="lg" variant="secondary">
-        <MessageSquare aria-hidden="true" className="size-5" /> Text us
-      </ButtonLink>
-      <ButtonLink href={mail} size="lg" variant="secondary">
-        <Mail aria-hidden="true" className="size-5" /> Email
-      </ButtonLink>
+    <div className="flex w-full flex-col items-center gap-3">
+      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+        <ButtonLink href={quoteHref} data-action="book" size="lg">
+          <Ticket aria-hidden="true" className="size-5" /> Book your ride
+        </ButtonLink>
+        <ButtonLink href={quoteHref} data-action="schedule" size="lg" variant="secondary">
+          <CalendarDays aria-hidden="true" className="size-5" /> Schedule a date
+        </ButtonLink>
+      </div>
+      <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+        <ButtonLink href={links.call} size="lg" variant="secondary">
+          <Phone aria-hidden="true" className="size-5" /> Call {phone.display}
+        </ButtonLink>
+        <ButtonLink href={links.sms} size="lg" variant="secondary">
+          <MessageSquare aria-hidden="true" className="size-5" /> Text us
+        </ButtonLink>
+        <ButtonLink href={links.mail} size="lg" variant="secondary">
+          <Mail aria-hidden="true" className="size-5" /> Email
+        </ButtonLink>
+      </div>
     </div>
   );
 }

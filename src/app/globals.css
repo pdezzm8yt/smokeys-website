@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
-/* Short landscape screens (phones on their side): the intro switches to a side-by-side layout. */
+/* Short landscape screens (phones on their side): the tunnel scene's copy switches to a side-by-side layout. */
 @custom-variant short (@media (max-height: 30rem) and (orientation: landscape));
+/*
+ * The homepage's world running SIDEWAYS (html[data-axis="x"]: JS on, and a
+ * screen tall enough; src/components/world). Without it the same scenes stack
+ * as a column and the page scrolls down.
+ */
+@custom-variant world (&:where([data-axis="x"] *));
 
 /*
  * Smokey's design tokens: black, gold and white over a living sky.
@@ -21,6 +27,12 @@
   /* The page colour under the sky (html): its horizon, so overscroll and the film's fade match it. */
   --background: var(--sky-horizon);
   --header-h: 4rem;
+  /* The road along the bottom of the sideways world (environment art, like the film: not UI tokens). */
+  --road-h: clamp(3.75rem, 11svh, 6.5rem);
+  --road-top: #2b2d33;
+  --road-bottom: #0b0c0e;
+  --road-line: rgb(255 255 255 / 0.7);
+  --road-edge: #f5b43c;
 }
 
 /* The night theme: the default, and always on what sits over the intro film or a lightbox (.theme-night). */
@@ -151,10 +163,58 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  /* Scroll lock while the intro plays (set by IntroSequence, JS only). */
-  html[data-scroll-lock] {
+  /* Held at the start while the tunnel scene's film loads (set by IntroSequence, JS only). */
+  html[data-scroll-lock]:not([data-axis="x"]) {
     overflow: hidden;
     overscroll-behavior: none;
+  }
+  html[data-scroll-lock][data-axis="x"] [data-world] {
+    overflow: hidden;
+  }
+
+  /*
+   * The world sideways: the page itself never scrolls (a page wider than the
+   * screen makes phones zoom out); the world fills the screen and scrolls
+   * along x. No scrollbar (a line along the bottom shows the way, and the nav,
+   * keys, swipes and the wheel move it), no rubber-banding into the browser's
+   * back gesture, no pull-to-refresh.
+   */
+  html[data-axis="x"] {
+    overflow: hidden;
+    overscroll-behavior: none;
+    scrollbar-gutter: auto;
+    scroll-behavior: auto;
+  }
+  html[data-axis="x"] [data-world] {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: none;
+    scrollbar-width: none;
+    /* The header sits over the scenes: what's scrolled to (focus, find-in-page) clears it. */
+    scroll-padding-top: var(--header-h);
+  }
+  html[data-axis="x"] [data-world]::-webkit-scrollbar {
+    display: none;
+  }
+  /*
+   * The road: one continuous strip along the bottom of the whole world
+   * (background-attachment: local spans the world's full scroll width and
+   * moves with it), carrying on from the road the bus drives out onto. Under
+   * the tunnel scene it's hidden by the film's stage.
+   */
+  html[data-axis="x"] [data-world] {
+    background:
+      repeating-linear-gradient(to right, var(--road-line) 0 2.5rem, transparent 2.5rem 5.5rem) 0 calc(100% - var(--road-h) * 0.42) / 100% 3px no-repeat local,
+      linear-gradient(var(--road-edge), var(--road-edge)) 0 calc(100% - var(--road-h) + 5px) / 100% 2px no-repeat local,
+      linear-gradient(to bottom, var(--road-top), var(--road-bottom) 70%) 0 100% / 100% var(--road-h) no-repeat local,
+      linear-gradient(to top, rgb(0 0 0 / 0.2), transparent) 0 calc(100% - var(--road-h)) / 100% 1.5rem no-repeat local;
+  }
+  html[data-axis="x"] [data-world][data-dragging] {
+    cursor: grabbing;
+    user-select: none;
   }
   h1, h2, h3 {
     text-wrap: balance;
@@ -334,10 +394,45 @@
   /* The stage is 100lvh (see intro-sequence.tsx); the scroll distance is counted in small-viewport screens. */
   height: calc(100lvh + 100svh * var(--screens-active));
 }
+/*
+ * Sideways, the scene is the stage's width plus its scroll length; a "screen"
+ * of scrolling is the smaller of the screen's width and height (a phone isn't
+ * swiped across 5 tall screens' worth, a desktop wheel isn't spun across 5 wide ones).
+ */
+:where([data-axis="x"]) .intro-scroll {
+  flex: none;
+  height: 100%;
+  width: calc(100vw + min(100vw, 100svh) * var(--screens-active));
+}
+/*
+ * As the tunnel scene moves off, the film's dark carries on a little into the
+ * sky (no hard black edge between the film and the world): a fading strip just
+ * past its end, behind the next scene's panel.
+ */
+:where([data-axis="x"]) .intro-scroll::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: min(40vw, 32rem);
+  pointer-events: none;
+  background: linear-gradient(to right, #000, rgb(0 0 0 / 0.55) 35%, transparent);
+}
 /* The film's resting point: #intro-end scrolls to where the stage has just finished (progress ≈ 1). */
 .intro-end {
+  inset-inline: 0;
+  height: 1px;
   top: calc(100% - 100lvh);
   scroll-margin-top: calc(-1 * (var(--header-h) + 1rem));
+}
+:where([data-axis="x"]) .intro-end {
+  inset-inline: auto;
+  top: 0;
+  left: calc(100% - 100vw);
+  width: 1px;
+  height: 100%;
+  scroll-margin-top: 0;
 }
 /* Controls along the bottom sit in the small viewport, never under a phone's toolbar. */
 .intro-bottom-ui {
@@ -409,18 +504,21 @@ html[data-intro-still] .intro-scroll {
  * The finished hero, without the scroll story: no JavaScript (see <noscript> in
  * the layout), the engine failed to load, or Skip before it was ready.
  */
-html[data-intro-final] :is([data-still="rest"], [data-glow="rest"], [data-copy-scrim], [data-stage-fade]) {
+html[data-intro-final] :is([data-still="rest"], [data-glow="rest"], [data-copy-scrim]) {
   opacity: 1;
 }
 html[data-intro-final] [data-bus-copy] {
   opacity: 1;
   visibility: visible;
 }
-html[data-intro-final] :is([data-film], [data-caption], [data-intro-wordmark], [data-intro-hint="scroll"], [data-intro-hint="skip"]) {
+html[data-intro-final] :is([data-film], [data-caption], [data-intro-hint="scroll"], [data-fx]) {
   display: none;
 }
 html[data-intro-failed] .intro-scroll {
   height: 100lvh;
+}
+html[data-intro-failed][data-axis="x"] .intro-scroll {
+  width: 100vw;
 }
 
 /* Intro loader: only while JS (or the boot script) holds data-intro-loading, never for no-JS visitors. */
@@ -443,15 +541,6 @@ html:not([data-intro-pending]) [data-intro-hint="scroll"] [data-pending] {
   display: none;
 }
 
-/* The site header stays out of the way until the bus is revealed. */
-[data-site-header] {
-  transition: opacity 300ms var(--ease-enter), visibility 300ms allow-discrete;
-}
-html[data-intro-stage="film"] [data-site-header] {
-  opacity: 0;
-  visibility: hidden;
-}
-
 /* Modal dialogs (mobile nav, lightbox) lock page scroll. */
 html:has(dialog[open]) {
   overflow: hidden;
@@ -470,6 +559,48 @@ html:has(dialog[open]) {
   }
   @media (prefers-reduced-motion: reduce) {
     details::details-content { transition: none; }
+  }
+}
+
+/*
+ * Travelling on: each scene's panel glides in and settles as it comes on
+ * screen from the side (a scroll-driven animation on the world's own scroll:
+ * off the main thread, no JS), so the scenes read as places along the way,
+ * not slides. Where unsupported, or with reduced motion, panels just sit there.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    html[data-axis="x"] [data-scene] > [data-panel],
+    html[data-axis="x"] footer[data-scene] {
+      animation: scene-arrive linear both;
+      animation-timeline: view(inline);
+      animation-range: entry 0% entry 90%;
+    }
+  }
+}
+/* The guide bus (src/components/world/guide-bus.tsx): wheels turn with the travel; it bobs while moving. */
+.guide-bus-wheel {
+  transform: rotate(var(--spin, 0deg));
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-guide-bus][data-moving] .guide-bus {
+    animation: bus-bob 0.34s ease-in-out infinite alternate;
+  }
+}
+@keyframes bus-bob {
+  to {
+    transform: translateY(-2%);
+  }
+}
+
+@keyframes scene-arrive {
+  from {
+    opacity: 0.35;
+    transform: translateX(7vw) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 

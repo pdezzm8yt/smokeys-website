@@ -2,6 +2,8 @@
 
 import { Menu, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
+import { worldScroll } from "@/components/world/world-axis";
+import { useWorldScene } from "@/components/world/world-scene";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { PeriodControl } from "@/components/sky/period-control";
@@ -15,20 +17,27 @@ export function SiteHeader() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const menuId = useId();
 
-  // Solid background once the user scrolls; only re-render when the threshold flips.
+  // A border once the visitor has moved along (down the page, or along the sideways world: its scroll
+  // events reach a capturing listener); only re-render when the threshold flips.
   useEffect(() => {
     let frame = 0;
     const onScroll = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setScrolled(window.scrollY > 24));
+      frame = requestAnimationFrame(() => setScrolled(worldScroll() > 24));
     };
     onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
     return () => {
       cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, { capture: true });
     };
   }, []);
+  // The scene in view in the world: its nav link says "you are here".
+  const scene = useWorldScene();
+  const current = (href: string) => {
+    const id = href.split("#")[1];
+    return Boolean(scene && id && (id === scene || (id === "intro-end" && scene === "top")));
+  };
 
   const openMenu = () => {
     dialogRef.current?.showModal();
@@ -54,13 +63,14 @@ export function SiteHeader() {
           <Logo />
         </a>
 
-        <nav aria-label="Main" className="ms-auto hidden lg:block">
-          <ul className="flex items-center gap-1">
+        <nav aria-label="Main" className="ms-auto hidden xl:block">
+          <ul className="flex items-center gap-0.5">
             {nav.map((item) => (
               <li key={item.href}>
                 <a
                   href={item.href}
-                  className="relative rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-left after:scale-x-0 after:bg-primary after:transition-transform after:duration-300 hover:after:scale-x-100"
+                  aria-current={current(item.href) ? "location" : undefined}
+                  className="relative rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground aria-[current]:text-foreground after:absolute after:inset-x-3 after:bottom-1 after:h-px after:origin-left after:scale-x-0 after:bg-primary after:transition-transform after:duration-300 hover:after:scale-x-100 aria-[current]:after:scale-x-100"
                 >
                   {item.label}
                 </a>
@@ -70,9 +80,10 @@ export function SiteHeader() {
         </nav>
 
         {/* Day or night: the same choice as clicking the sun or the moon in the sky. */}
-        <PeriodControl variant="compact" className="ms-auto max-sm:hidden lg:ms-0" />
-        <a href={quoteHref} className={buttonClasses({ className: "max-sm:ms-auto max-sm:h-10 max-sm:px-4" })}>
-          Get a Quote
+        <PeriodControl variant="compact" className="ms-auto max-sm:hidden xl:ms-0" />
+        {/* Opens the booking panel over the world (ActionDrawer); without JS, the contact scene. */}
+        <a href={quoteHref} data-action="book" className={buttonClasses({ className: "max-sm:ms-auto max-sm:h-10 max-sm:px-4" })}>
+          Book
         </a>
         <button
           type="button"
@@ -80,7 +91,7 @@ export function SiteHeader() {
           aria-haspopup="dialog"
           aria-expanded={menuOpen}
           aria-controls={menuId}
-          className="-me-2 grid size-11 place-items-center rounded-full text-foreground transition-colors hover:bg-muted lg:hidden"
+          className="-me-2 grid size-11 shrink-0 place-items-center rounded-full text-foreground transition-colors hover:bg-muted xl:hidden"
         >
           <Menu aria-hidden="true" className="size-6" />
           <span className="sr-only">Open menu</span>
@@ -125,6 +136,7 @@ export function SiteHeader() {
                   <a
                     href={item.href}
                     onClick={closeMenu}
+                    aria-current={current(item.href) ? "location" : undefined}
                     className="group flex items-center justify-between border-b border-border py-4 font-display text-2xl font-bold transition-colors hover:text-gold"
                   >
                     {item.label}
@@ -140,8 +152,8 @@ export function SiteHeader() {
             <span className="text-sm font-semibold">Day or night ride</span>
             <PeriodControl variant="compact" />
           </div>
-          <a href={quoteHref} onClick={closeMenu} className={buttonClasses({ size: "lg", className: "mt-auto w-full" })}>
-            Get a Quote
+          <a href={quoteHref} data-action="book" onClick={closeMenu} className={buttonClasses({ size: "lg", className: "mt-auto w-full" })}>
+            Book your ride
           </a>
           <a href={site.contact.phone.href} className="mt-4 flex items-center justify-center gap-2 text-center text-sm text-muted-foreground hover:text-foreground">
             or call {site.contact.phone.display}

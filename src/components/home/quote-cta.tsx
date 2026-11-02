@@ -4,15 +4,14 @@ import { site } from "@/content/site";
 import { QuoteChannels } from "./quote-channels";
 
 /**
- * Final call to action, on a glass panel over the sky. Until the quote form
- * ships (next phase) it offers the direct contact routes, pre-filled with the
- * visitor's day/night choice; the form will slot into this section at #quote.
+ * The Contact scene's content, the world's final call to action: the direct
+ * contact routes, pre-filled with the visitor's booking details (the booking
+ * panel, ActionDrawer, gathers them; page.tsx wraps this in its scene).
  */
 export function QuoteCta() {
   return (
-    <section id="quote" aria-labelledby="quote-title" className="relative px-4 pt-12 pb-24 sm:px-6 sm:pb-32 lg:px-8">
-      <div data-panel className="glass mx-auto flex max-w-4xl flex-col items-center rounded-[2rem] px-6 py-14 text-center sm:px-12 sm:py-20">
-        <p className="text-xs font-semibold tracking-[0.22em] text-gold uppercase">Request a quote</p>
+    <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
+        <p className="text-xs font-semibold tracking-[0.22em] text-gold uppercase">Contact &amp; quotes</p>
         <h2 id="quote-title" className="mt-4 font-display text-4xl leading-[1.05] font-black tracking-tight sm:text-6xl">
           Ready to roll?
         </h2>
@@ -25,7 +24,6 @@ export function QuoteCta() {
           <QuoteChannels />
         </div>
         {site.contact.phone.sample && <SampleTag label="Sample contact details" className="mt-6" />}
-      </div>
-    </section>
+    </div>
   );
 }

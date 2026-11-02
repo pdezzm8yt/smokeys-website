@@ -23,7 +23,7 @@ precision highp float;
 varying vec2 vUv;
 uniform vec2 uRes;
 uniform float uTime;
-uniform float uScroll;
+uniform vec2 uScroll;
 uniform vec3 uLit;
 uniform vec3 uShade;
 uniform vec3 uLight;
@@ -57,7 +57,7 @@ float fbm(vec2 p) {
 // One layer: returns its density (0-1) and, through 'lit', how much of it faces the light.
 float cloud(vec2 uv, float aspect, float scale, float speed, float parallax, float cover, float y0, float y1, out float lit) {
   // Clouds are wider than they are tall: stretch the noise horizontally.
-  vec2 p = vec2(uv.x * aspect * 0.6, (uv.y + uScroll * parallax) * 1.45) * scale + vec2(uTime * speed, 0.0);
+  vec2 p = vec2((uv.x + uScroll.x * parallax) * aspect * 0.6, (uv.y + uScroll.y * parallax) * 1.45) * scale + vec2(uTime * speed, 0.0);
   // A light domain warp: billowing edges (a strong one makes smoke).
   vec2 q = vec2(fbm(p + vec2(0.0, uTime * speed * 0.35)), fbm(p + vec2(5.2, 1.3)));
   vec2 w = p + 0.55 * q;
@@ -99,7 +99,8 @@ void main() {
 
 export type CloudUniforms = {
   time: number;
-  scroll: number;
+  /** How far the page has moved, in screens: [sideways, down] (each layer drifts by its own share: parallax). */
+  scroll: [number, number];
   lit: [number, number, number];
   shade: [number, number, number];
   light: [number, number, number];
@@ -175,7 +176,7 @@ export class SkyClouds {
     const { gl, loc } = this;
     gl.uniform2f(loc.uRes, this.canvas.width, this.canvas.height);
     gl.uniform1f(loc.uTime, u.time);
-    gl.uniform1f(loc.uScroll, u.scroll);
+    gl.uniform2f(loc.uScroll, ...u.scroll);
     gl.uniform3f(loc.uLit, ...u.lit);
     gl.uniform3f(loc.uShade, ...u.shade);
     gl.uniform3f(loc.uLight, ...u.light);

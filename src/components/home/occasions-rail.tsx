@@ -77,6 +77,8 @@ export function OccasionsRail({ occasions }: { occasions: Occasion[] }) {
             <li key={o.slug} className="w-[min(78vw,19rem)] shrink-0 snap-start">
               <a
                 href={quoteHref}
+                data-action="book"
+                data-book-occasion={o.title}
                 onPointerMove={trackPointer}
                 className={cn(
                   "group relative flex h-full min-h-64 flex-col overflow-hidden rounded-(--radius-card) bg-surface-raised p-6 ring-1 ring-border",

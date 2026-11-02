@@ -23,13 +23,20 @@ export const site = {
  * from any other route, like the 404 page); each will switch to its own route
  * (/party-bus, /packages, …) when that page is built.
  */
+/**
+ * The scenes of the homepage's world, in travel order (each glides there, so
+ * "/#…" works from any page). Home is where the bus comes out of the tunnel.
+ */
 export const nav = [
-  { label: "The Bus", href: "/#bus" },
-  { label: "Day & Night", href: "/#day-night" },
-  { label: "Events", href: "/#events" },
-  { label: "Packages", href: "/#packages" },
+  { label: "Home", href: "/#intro-end" },
+  { label: "Bus", href: "/#bus" },
+  { label: "Features", href: "/#features" },
   { label: "Gallery", href: "/#gallery" },
-  { label: "FAQ", href: "/#faq" },
+  { label: "Packages", href: "/#packages" },
+  { label: "Events", href: "/#events" },
+  { label: "About", href: "/#about" },
+  { label: "Contact", href: "/#contact" },
 ] as const;
 
-export const quoteHref = "/#quote";
+/** Where booking and quote links go without JavaScript (with it, they open the booking panel: data-action). */
+export const quoteHref = "/#contact";
