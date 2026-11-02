@@ -16,12 +16,16 @@
  *   6  reduced motion: a short change, the sun and moon never travel, no twinkle, still clouds
  *   7  shooting stars: now and then at night, never by day or with reduced motion (skipped with --quick)
  *   8  the sky does no work under the intro film
- *   9  phone: the switch lives in the menu drawer
+ *   9  phone: the switch lives in the menu drawer; its button names the drawer (aria-controls) and says
+ *      whether it's open (aria-expanded) through Esc, the backdrop and a link
  *   10 readability: measured text contrast on the panels, day and night, mid-screen and just
  *      under the header; the 404 page too
  *   11 frame rate: scrolling the page, and during a change (bus panel in view and not), desktop
  *      and phone at 4x CPU
  *   12 no JavaScript: a night sky with no sun
+ *   13 "Meet the bus" on a phone (its panel follows the sky): a hotspot tapped on the photo brings
+ *      its text on screen, moving the page only if it must, and tells screen readers; a pick in
+ *      the list isn't announced again; the taps never reach the sky
  */
 import { chromium } from "playwright-core";
 import sharp from "sharp";
@@ -287,18 +291,45 @@ if (!quick) {
   await ctx.close();
 }
 
-// 9. Phone: the switch is in the menu drawer.
+// 9. Phone: the switch is in the menu drawer. The menu button names the drawer (aria-controls) and says
+//    whether it's open (aria-expanded) through every way out: Esc, the backdrop, a link.
 {
   const { ctx, page } = await open(phone, { prefs: { period: "day" } });
+  const menuButton = page.locator('[data-site-header] button[aria-haspopup="dialog"]');
+  /** The button's aria-expanded, whether its aria-controls names the drawer, and whether that's open. */
+  const menu = () =>
+    menuButton.evaluate((b) => {
+      const target = document.getElementById(b.getAttribute("aria-controls") ?? "");
+      return { expanded: b.getAttribute("aria-expanded"), controlsDialog: target?.tagName === "DIALOG", open: Boolean(target?.open) };
+    });
   const headerSwitchVisible = await page.locator("[data-site-header] > div [role=radiogroup]").isVisible();
-  await page.locator('[data-site-header] button[aria-haspopup="dialog"]').click();
+  const closed = await menu();
+  await menuButton.click();
   await page.waitForTimeout(400);
+  const opened = await menu();
   await page.locator('dialog[open] [role=radio][aria-label="Night ride"]').click();
   await page.waitForTimeout(6000);
   const s = await sky(page);
   const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
-  results["9 phone"] = { headerSwitchVisible, sky: s.sky, period: s.stored.period, overflowX };
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(400);
+  const afterEsc = await menu();
+  await menuButton.click();
+  await page.waitForTimeout(400);
+  const drawer = await page.locator("dialog[open]").boundingBox();
+  await page.mouse.click(drawer.x / 2, drawer.y + drawer.height / 2); // the backdrop, left of the drawer
+  await page.waitForTimeout(400);
+  const afterBackdrop = await menu();
+  await menuButton.click();
+  await page.waitForTimeout(400);
+  await page.locator('dialog[open] nav[aria-label="Mobile"] a', { hasText: "Packages" }).click();
+  await page.waitForTimeout(600);
+  const afterLink = { ...(await menu()), hash: await page.evaluate(() => location.hash) };
+  results["9 phone"] = { headerSwitchVisible, sky: s.sky, period: s.stored.period, overflowX, menu: { closed, opened, afterEsc, afterBackdrop, afterLink } };
   check("9 drawer switch works", !headerSwitchVisible && s.stored.period === "night" && s.sky === "night" && overflowX === 0, results["9 phone"]);
+  check("9 the menu button names the drawer (aria-controls)", closed.controlsDialog, closed);
+  check("9 the menu button says collapsed, then expanded", closed.expanded === "false" && !closed.open && opened.expanded === "true" && opened.open, { closed, opened });
+  check("9 the menu button collapses with the drawer (Esc, backdrop, link)", [afterEsc, afterBackdrop, afterLink].every((m) => m.expanded === "false" && !m.open) && afterLink.hash === "#packages", { afterEsc, afterBackdrop, afterLink });
   await ctx.close();
 }
 
@@ -447,6 +478,61 @@ if (!quick) {
   const s = await page.evaluate(() => ({ sun: +getComputedStyle(document.querySelector("[data-sky-sun]")).opacity, night: +getComputedStyle(document.querySelector('[data-sky-key="3"]')).opacity }));
   results["12 no JavaScript"] = s;
   check("12 night sky without a sun", s.sun === 0 && s.night === 1, s);
+  await ctx.close();
+}
+
+// 13. "Meet the bus" on a phone: the feature list sits below the photo, so a tapped hotspot's text can
+//     open off screen. Tapped with the photo low on the screen, the farthest feature comes on screen;
+//     with the whole list in view the page stays put. Screen readers hear what a tap opened (not what
+//     a list pick opened: that button holds its text). The taps, inside a panel, never reach the sky.
+{
+  const { ctx, page } = await open(phone, { prefs: { period: "day" } });
+  // Below the intro its engine still starts once the film is in: let it, so nothing re-measures mid-check.
+  await page.waitForFunction(() => { const h = document.documentElement; return !h.hasAttribute("data-intro-pending") && (document.querySelector("[data-film]")?.hasAttribute("data-ready") || h.hasAttribute("data-intro-still") || h.hasAttribute("data-intro-failed")); }, null, { timeout: 60000 }).catch(() => {});
+  await page.getByRole("tab", { name: "Interior" }).click();
+  await page.waitForTimeout(800);
+  const hotspots = page.locator("#bus [role=tabpanel] button[aria-pressed]");
+  /** Put the photo at the screen's bottom edge or just under the header, tap `spot`, report what's on screen. */
+  const tapHotspot = async (spot, where) => {
+    await page.locator("#bus [role=tabpanel]").evaluate((el, where) => {
+      const r = el.getBoundingClientRect();
+      const header = document.querySelector("[data-site-header]").getBoundingClientRect().bottom;
+      window.scrollBy({ top: where === "bottom" ? r.bottom - (innerHeight - 8) : r.top - (header + 8), behavior: "instant" });
+    }, where);
+    await page.waitForTimeout(300);
+    const before = await page.evaluate(() => scrollY);
+    await spot.tap();
+    await page.waitForTimeout(1200); // the text opens (0.3 s), then the page moves if it must
+    return spot.evaluate((el, before) => {
+      const item = document.querySelector('#bus ul button[aria-expanded="true"]');
+      const r = item.getBoundingClientRect();
+      const s = el.getBoundingClientRect();
+      return {
+        label: el.textContent.trim(),
+        body: item.lastElementChild?.textContent?.trim() ?? "",
+        top: Math.round(r.top),
+        bottom: Math.round(r.bottom),
+        header: Math.round(document.querySelector("[data-site-header]").getBoundingClientRect().bottom),
+        screen: innerHeight,
+        moved: Math.round(scrollY - before),
+        hotspotOnScreen: s.top >= 0 && s.bottom <= innerHeight,
+        told: document.querySelector("#bus [role=status]")?.textContent ?? null,
+      };
+    }, before);
+  };
+  const far = await tapHotspot(hotspots.last(), "bottom");
+  const near = await tapHotspot(hotspots.first(), "top");
+  await page.locator("#bus ul button").nth(2).tap();
+  await page.waitForTimeout(600);
+  const afterList = await page.evaluate(() => document.querySelector("#bus [role=status]")?.textContent ?? null);
+  const s = await sky(page);
+  results["13 meet the bus (phone)"] = { far, near, afterList, sky: s.sky, period: s.stored.period };
+  const onScreen = (x) => x.top >= x.header && x.bottom <= x.screen;
+  check("13 a feature tapped low on the photo comes on screen", onScreen(far) && far.moved > 0, far);
+  check("13 already on screen: the page stays put", onScreen(near) && near.moved === 0, near);
+  check("13 screen readers hear what a tap opened", [far, near].every((x) => x.body && x.told?.includes(x.label) && x.told.includes(x.body)), { far: far.told, near: near.told });
+  check("13 a pick in the list isn't announced again", afterList === "", afterList);
+  check("13 the taps never reach the sky", s.sky === "day" && s.stored.period === "day", s);
   await ctx.close();
 }
 

@@ -13,6 +13,7 @@
  *       <file>-small.mp4         phones: long edge ≤1440, lighter
  *       <file>-<still>.webp      stills: start, cover, rest (reduced motion, no JS, while loading)
  *       <file>-glow-<n>.webp     tiny pre-blurred glows (behind the film when it's shown as a band)
+ *     each then named after its content (hash.mjs): <file>.<hash>.mp4, <file>-small.<hash>.mp4…
  *   → src/content/intro-video.generated.json  (sizes, durations, file names, KB)
  * A cut without a master is skipped, and its existing files are left alone
  * (masters are git-ignored: another machine may have built them).
@@ -23,18 +24,18 @@
  * scale. Audio is always dropped.
  *
  * Each cut is built into a scratch folder, checked, and only then swapped
- * into public/video/intro (with its manifest entry): a failed build never
- * leaves the site pointing at missing files.
+ * into public/video/intro and given its hashed names (the manifest moves to
+ * them before any older file is removed): a failed build never leaves the
+ * site pointing at missing files.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
 import { FILM_GLOWS, FILM_STILLS, frameTimes, introFilm } from "../../src/content/intro-video.ts";
+import { hashFiles, MANIFEST, OUT } from "./hash.mjs";
 import { ffmpeg, probe, ROOT } from "./lib.mjs";
 
 const MASTERS = path.join(ROOT, "assets/intro-source/video");
-const OUT = path.join(ROOT, "public/video/intro");
-const MANIFEST = path.join(ROOT, "src/content/intro-video.generated.json");
 const SCRATCH = path.join(ROOT, ".cache/intro-video/build");
 const MASTER_EXT = ["mov", "mp4", "m4v", "webm", "mkv"];
 
@@ -187,9 +188,8 @@ async function buildCut(name, cut) {
   const produced = [...Object.values(files), ...Object.values(stills), ...Object.values(glows)];
   for (const f of produced) if (!existsSync(path.join(tmp, f))) throw new Error(`${cut.file}: missing output ${f}`);
 
-  // Everything built and checked: swap it in, and drop this cut's files the build no longer makes.
+  // Everything built and checked: swap it in (hashFiles() then names it after its content and drops the cut's outdated files).
   mkdirSync(OUT, { recursive: true });
-  for (const f of readdirSync(OUT)) if (f.startsWith(`${cut.file}.`) || f.startsWith(`${cut.file}-`)) if (!produced.includes(f)) rmSync(path.join(OUT, f));
   for (const f of produced) renameSync(path.join(tmp, f), path.join(OUT, f));
   rmSync(tmp, { recursive: true, force: true });
 
@@ -227,7 +227,7 @@ for (const [name, cut] of Object.entries(introFilm.cuts)) {
   if (only && !only.includes(name)) continue;
   const entry = await buildCut(name, cut);
   if (entry) manifest[name] = entry;
-  writeFileSync(MANIFEST, `${JSON.stringify(manifest, null, 2)}\n`); // after every cut: always matches public/
+  hashFiles(manifest); // after every cut: hashed names, then the manifest (always matches public/), then outdated files go
 }
 if (!Object.keys(manifest).length) console.warn("! No cut has been built: the intro needs at least one master (see assets/intro-source/video/README.md).");
 console.log(`\nManifest: ${path.relative(ROOT, MANIFEST)}`);

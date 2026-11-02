@@ -47,5 +47,8 @@ scrolled, and the build warns above ~7 MB (desktop) / ~3.5 MB (phones).
      film just after `rest` unless you set `trim.end`.
 4. `npm run video:build` (or `-- --only=wide`): writes the web versions to
    `public/video/intro/` and updates `src/content/intro-video.generated.json`.
+   Each file is named after its content (`film-wide.<hash>.mp4`), so browsers
+   keep it for good and new footage always gets new names; the cut's older
+   files are removed once the manifest has moved on.
 5. Once EVERY built cut shows Smokey's real bus, set `introFilm.placeholder`
    to `false` (the "Placeholder footage" tag goes away: it covers both cuts).

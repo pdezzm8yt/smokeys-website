@@ -38,9 +38,10 @@ function SampleArt({ item, large = false }: { item: GalleryItem; large?: boolean
   );
 }
 
+/** A grid tile crops its photo to fill the tile; the lightbox (`large`) shows all of it, letterboxed on its stage. */
 function Media({ item, large = false, sizes }: { item: GalleryItem; large?: boolean; sizes: string }) {
   return item.src ? (
-    <Image src={item.src} alt={item.alt} fill sizes={sizes} className="object-cover" />
+    <Image src={item.src} alt={item.alt} fill sizes={sizes} className={large ? "object-contain" : "object-cover"} />
   ) : (
     <SampleArt item={item} large={large} />
   );
@@ -151,8 +152,10 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
         className="theme-night m-auto size-full max-h-none max-w-none bg-transparent p-0 text-foreground backdrop:bg-black/85 backdrop:backdrop-blur-md"
       >
         {current && openIndex !== null && (
-          <div className="pointer-events-none flex size-full flex-col items-center justify-center gap-4 p-4 sm:p-10">
-            <div className="pointer-events-auto relative aspect-[4/3] w-full max-w-5xl overflow-hidden rounded-2xl bg-black ring-1 ring-white/10 max-sm:aspect-[3/4]">
+          <div className="pointer-events-none flex size-full flex-col items-center justify-center gap-4 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-10">
+            {/* The stage: all the room the caption and controls leave (clear of the notch and home indicator on phones).
+                Its size never depends on the photo, so nothing moves as one loads; the photo sits whole inside it. */}
+            <div className="pointer-events-auto relative w-full max-w-7xl flex-1 overflow-hidden rounded-2xl bg-black ring-1 ring-white/10">
               <AnimatePresence initial={false} custom={direction} mode="popLayout">
                 <m.div
                   key={current.id}
@@ -175,13 +178,14 @@ export function GalleryPreview({ items }: { items: GalleryItem[] }) {
                     else if (info.offset.x > 60 || info.velocity.x > 400) step(-1);
                   }}
                 >
-                  <Media item={current} large sizes="(min-width: 1024px) 64rem, 100vw" />
+                  {/* The stage's width: 80rem at most, inside the column's padding (2.5rem a side from sm, 1rem below). */}
+                  <Media item={current} large sizes="(min-width: 85rem) 80rem, (min-width: 40rem) calc(100vw - 5rem), calc(100vw - 2rem)" />
                 </m.div>
               </AnimatePresence>
               {!current.src && <SampleTag label="Sample image" className="absolute top-4 left-4" />}
             </div>
 
-            <div className="pointer-events-auto flex w-full max-w-5xl items-center justify-between gap-4">
+            <div className="pointer-events-auto flex w-full max-w-7xl items-center justify-between gap-4">
               <p className="text-sm text-muted-foreground" aria-live="polite">
                 <span className="text-foreground tabular-nums">
                   {openIndex + 1} / {visible.length}
