@@ -1,7 +1,7 @@
 "use client";
 
 import { Menu, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { PeriodControl } from "@/components/sky/period-control";
@@ -11,7 +11,9 @@ import { Logo } from "./logo";
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const menuId = useId();
 
   // Solid background once the user scrolls; only re-render when the threshold flips.
   useEffect(() => {
@@ -28,7 +30,10 @@ export function SiteHeader() {
     };
   }, []);
 
-  const openMenu = () => dialogRef.current?.showModal();
+  const openMenu = () => {
+    dialogRef.current?.showModal();
+    setMenuOpen(true);
+  };
   const closeMenu = () => dialogRef.current?.close();
 
   return (
@@ -73,6 +78,8 @@ export function SiteHeader() {
           type="button"
           onClick={openMenu}
           aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          aria-controls={menuId}
           className="-me-2 grid size-11 place-items-center rounded-full text-foreground transition-colors hover:bg-muted lg:hidden"
         >
           <Menu aria-hidden="true" className="size-6" />
@@ -80,10 +87,13 @@ export function SiteHeader() {
         </button>
       </div>
 
-      {/* Native modal dialog: focus trap, Esc to close and inert background for free. */}
+      {/* Native modal dialog: focus trap, Esc to close and inert background for free. Every way out (Esc, the
+          backdrop, a link, the close button) fires `close`, which collapses the menu button. */}
       <dialog
         ref={dialogRef}
+        id={menuId}
         aria-label="Menu"
+        onClose={(e) => setMenuOpen(e.currentTarget.open)}
         onClick={(e) => {
           if (e.target === e.currentTarget) closeMenu(); // backdrop click
         }}

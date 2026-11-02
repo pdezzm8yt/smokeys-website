@@ -32,10 +32,11 @@ function loadEngine() {
 
 const html = () => document.documentElement;
 
-/** Reduced motion or Save-Data: the story as stills (the film isn't downloaded). */
+/** Reduced motion, Save-Data or a 2G connection: the story as stills (the film isn't downloaded). */
 function introStill() {
-  const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
-  return saveData || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const net = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  const slow = net?.effectiveType === "slow-2g" || net?.effectiveType === "2g";
+  return net?.saveData === true || slow || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function setScrollLock(locked: boolean) {
@@ -97,7 +98,7 @@ export function IntroSequence({ film, copy, exploreHref }: IntroSequenceProps) {
     // The boot script's failsafe already showed the finished hero (JS arrived very late): keep it.
     if (html().hasAttribute("data-intro-failed")) return;
     const still = introStill();
-    // (Save-Data has no CSS media query: the section shortens now, maybe after a pre-JS Skip.)
+    // (Save-Data and 2G have no CSS media query: the section shortens now, maybe after a pre-JS Skip.)
     if (still) keepPlace(section, () => (html().dataset.introStill = ""));
     // At the top, the story waits for its film; a restored or linked scroll position doesn't.
     const atTop = window.scrollY < 8 && (!window.location.hash || window.location.hash === "#top");

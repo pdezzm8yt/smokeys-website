@@ -42,15 +42,15 @@ _Status updated after the merge (2026-10-28): PRs #5–#9 landed together throug
 | M4 | Medium | The root layout set the canonical and OG URL to "/", which every future route would inherit | Confirmed | **Repaired:** moved to the homepage (PR #8) |
 | M5 | Medium | No Content-Security-Policy | Confirmed | **Open:** needs care (inline pre-paint script, `blob:` video, Vercel toolbar, and later Stripe and maps). Ship Report-Only first |
 | M6 | Medium | Initial JS is ~258 KB gzip (248 KB before the living sky added ~10 KB), over the 200 KB budget | Confirmed (measured) | **Open:** trim when the booking island lands |
-| M7 | Medium | The film is served with `max-age=0` under unhashed names, so every visit revalidates 3–6 MB before scrolling unlocks | Confirmed | **Open:** content-hash the names and mark them immutable |
-| M8 | Medium | "Meet the bus" on phones: a tapped hotspot's text appears below the photo, often off screen, and screen readers aren't told | Confirmed | **Open** |
-| M9 | Medium | The gallery lightbox crops photos (`object-cover` in a fixed frame), so real photos will be cut | Confirmed | **Open:** fix before real photos go in |
-| M10 | Medium | On slow connections the intro holds the page for up to 25 s before falling back to stills (Skip is the only way out) | Confirmed | **Open:** network-aware early fallback |
+| M7 | Medium | The film is served with `max-age=0` under unhashed names, so every visit revalidates 3–6 MB before scrolling unlocks | Confirmed | **Repaired:** content-hashed names (`npm run video:hash`), served `immutable`; `test:intro` flow G checks it |
+| M8 | Medium | "Meet the bus" on phones: a tapped hotspot's text appears below the photo, often off screen, and screen readers aren't told | Confirmed | **Repaired:** a hotspot tapped on the photo brings its text on screen (the page moves only if it must) and tells screen readers (a polite status); `test:sky` check 13 checks it |
+| M9 | Medium | The gallery lightbox crops photos (`object-cover` in a fixed frame), so real photos will be cut | Confirmed | **Repaired:** the lightbox shows the whole photo at its own aspect ratio, letterboxed on a stage that fills the screen (`npm run test:gallery`) |
+| M10 | Medium | On slow connections the intro holds the page for up to 25 s before falling back to stills (Skip is the only way out) | Confirmed | **Repaired:** stills at once on 2G, or about 2 s into a download on course to take over 10 s (cancelled); `test:intro` flows 15–16 check it |
 | M11 | Medium | The placeholder domain `smokeys.example` is baked into the canonical, OG, sitemap and robots output | Confirmed | Launch item (`site.url`) |
 | L1 | Low | `/favicon.ico` returns 404; no apple-icon or web manifest | Confirmed | Open (needs the logo) |
 | L2 | Low | The intro footage carries the generator's small "Ai" badge, visible on desktop and partly on phones | Confirmed | Your decision (keep, crop, or re-render) |
 | L3 | Low | Colour seams: theme colour and loader `#0b0a10`, footer `#08080a`, stage `#000`, page about `#070709` | Confirmed | **Partly repaired:** PR #9 (the theme colour follows the sky; the footer and page are glass over the sky). Open: the loader `#0b0a10` and the black film stage |
-| L4 | Low | The mobile menu button has no `aria-expanded` / `aria-controls` | Confirmed | Open |
+| L4 | Low | The mobile menu button has no `aria-expanded` / `aria-controls` | Confirmed | **Repaired:** both, collapsing with the drawer however it closes; `test:sky` check 9 checks it |
 | L5 | Low | `.vercelignore` didn't exclude the 22 MB of local film masters, so a CLI deploy would upload them | Confirmed | **Repaired** (PR #8) |
 
 Nothing else turned up in the runtime checks: no console errors, failed requests, broken in-page anchors or horizontal overflow on desktop or phone. The baseline security headers (`X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`) are present.
@@ -177,11 +177,11 @@ Without verified specs, those hotspots would be fake interactions, so they wait.
    - sample content presented without tags (fixed);
    - the photo provenance;
    - the two different buses;
-   - "Meet the bus" feedback on phones;
-   - the lightbox cropping;
-   - caching;
+   - "Meet the bus" feedback on phones (fixed);
+   - the lightbox cropping (fixed);
+   - caching (fixed);
    - the JS budget;
-   - the slow-network wait.
+   - the slow-network wait (fixed).
 3. **Missing from the animation:**
    - the 16:9 version and the real bus (assets);
    - your headline and buttons (wording decision);

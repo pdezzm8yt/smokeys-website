@@ -37,9 +37,20 @@ const VIEWS = [
 
 type ViewId = (typeof VIEWS)[number]["id"];
 
+// A feature's text opening and closing in the list (named, so the end of an opening can be recognised).
+const bodyVariants = {
+  closed: { height: 0, opacity: 0, transition: exit(duration.moderate) },
+  open: { height: "auto", opacity: 1, transition: enter(duration.moderate) },
+};
+
 export function MeetTheBus() {
   const [view, setView] = useState<ViewId>("exterior");
   const [activeId, setActiveId] = useState<string>(exteriorHotspots[0]?.id ?? "");
+  // A feature picked on the photo: its hotspot only carries the name, so the text is told to screen
+  // readers (said) and, once open, its list item is brought on screen (on phones the list sits below
+  // the photo). A pick in the list says nothing: that button already holds the text.
+  const [said, setSaid] = useState("");
+  const toReveal = useRef<string | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const uid = useId();
 
@@ -49,6 +60,24 @@ export function MeetTheBus() {
   const selectView = (id: ViewId) => {
     setView(id);
     setActiveId(VIEWS.find((v) => v.id === id)?.hotspots[0]?.id ?? "");
+    setSaid("");
+    toReveal.current = null;
+  };
+
+  // The page moves only if the item isn't already on screen (nearest), clear of the header (html's
+  // scroll-padding); smoothly, or instantly with reduced motion (html's scroll-behavior).
+  const reveal = (id: string) => {
+    if (toReveal.current !== id) return;
+    toReveal.current = null;
+    document.getElementById(`${uid}-feature-${id}`)?.scrollIntoView({ block: "nearest" });
+  };
+
+  const pick = (h: Hotspot, onPhoto: boolean) => {
+    const opening = toReveal.current === h.id; // tapped again while its text opens: that opening's end reveals it
+    setActiveId(h.id);
+    setSaid(onPhoto ? `${h.label}. ${h.body}` : "");
+    toReveal.current = onPhoto ? h.id : null;
+    if (onPhoto && h.id === active?.id && !opening) reveal(h.id); // already open: no opening to wait for
   };
 
   // APG tabs: arrows move + activate, Home/End jump.
@@ -144,7 +173,7 @@ export function MeetTheBus() {
                         <button
                           key={h.id}
                           type="button"
-                          onClick={() => setActiveId(h.id)}
+                          onClick={() => pick(h, true)}
                           aria-pressed={isActive}
                           style={{ left: `${h.x}%`, top: `${h.y}%` }}
                           className="group absolute grid size-11 -translate-1/2 place-items-center rounded-full"
@@ -172,6 +201,9 @@ export function MeetTheBus() {
               </m.div>
             </AnimatePresence>
           </div>
+          <p role="status" className="sr-only">
+            {said}
+          </p>
           {current.media.placeholder && (
             <SampleTag label={current.media.src ? "Sample photo · confirm before launch" : "Illustration · real photos coming"} className="absolute top-3 right-3" />
           )}
@@ -184,10 +216,10 @@ export function MeetTheBus() {
           {current.hotspots.map((h) => {
             const isActive = h.id === active?.id;
             return (
-              <li key={h.id}>
+              <li key={h.id} id={`${uid}-feature-${h.id}`} className="scroll-mb-4">
                 <button
                   type="button"
-                  onClick={() => setActiveId(h.id)}
+                  onClick={() => pick(h, false)}
                   aria-expanded={isActive}
                   className={cn(
                     "w-full rounded-2xl px-5 py-4 text-start ring-1 transition-[background-color,box-shadow] duration-200",
@@ -203,9 +235,13 @@ export function MeetTheBus() {
                       <m.span
                         key="body"
                         className="block overflow-hidden"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1, transition: enter(duration.moderate) }}
-                        exit={{ height: 0, opacity: 0, transition: exit(duration.moderate) }}
+                        variants={bodyVariants}
+                        initial="closed"
+                        animate="open"
+                        exit="closed"
+                        onAnimationComplete={(name) => {
+                          if (name === "open") reveal(h.id);
+                        }}
                       >
                         <span className="block pt-2 ps-5 text-sm leading-relaxed text-muted-foreground">{h.body}</span>
                       </m.span>

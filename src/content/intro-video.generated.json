@@ -6,38 +6,38 @@
     "duration": 11.667,
     "fps": 24,
     "files": {
-      "mp4": "film-portrait.mp4",
-      "webm": "film-portrait.webm",
-      "small": "film-portrait-small.mp4"
+      "mp4": "film-portrait.51511f5262.mp4",
+      "webm": "film-portrait.af48dc6f8a.webm",
+      "small": "film-portrait-small.283b531be1.mp4"
     },
     "small": {
       "width": 810,
       "height": 1440
     },
     "stills": {
-      "start": "film-portrait-start.webp",
-      "cover": "film-portrait-cover.webp",
-      "rest": "film-portrait-rest.webp"
+      "start": "film-portrait-start.a10799ff08.webp",
+      "cover": "film-portrait-cover.6705b14405.webp",
+      "rest": "film-portrait-rest.0c8404594d.webp"
     },
     "glows": {
-      "start": "film-portrait-glow-start.webp",
-      "tunnel": "film-portrait-glow-tunnel.webp",
-      "cover": "film-portrait-glow-cover.webp",
-      "headlights": "film-portrait-glow-headlights.webp",
-      "rest": "film-portrait-glow-rest.webp"
+      "start": "film-portrait-glow-start.7d48b33a52.webp",
+      "tunnel": "film-portrait-glow-tunnel.4f96fb33ce.webp",
+      "cover": "film-portrait-glow-cover.d09e60d13e.webp",
+      "headlights": "film-portrait-glow-headlights.cf7d703999.webp",
+      "rest": "film-portrait-glow-rest.d3d198341d.webp"
     },
     "kb": {
-      "film-portrait.mp4": 5671,
-      "film-portrait.webm": 2978,
-      "film-portrait-small.mp4": 3057,
-      "film-portrait-start.webp": 58,
-      "film-portrait-cover.webp": 15,
-      "film-portrait-rest.webp": 54,
-      "film-portrait-glow-start.webp": 0,
-      "film-portrait-glow-tunnel.webp": 0,
-      "film-portrait-glow-cover.webp": 0,
-      "film-portrait-glow-headlights.webp": 0,
-      "film-portrait-glow-rest.webp": 0
+      "film-portrait.51511f5262.mp4": 5671,
+      "film-portrait.af48dc6f8a.webm": 2978,
+      "film-portrait-small.283b531be1.mp4": 3057,
+      "film-portrait-start.a10799ff08.webp": 58,
+      "film-portrait-cover.6705b14405.webp": 15,
+      "film-portrait-rest.0c8404594d.webp": 54,
+      "film-portrait-glow-start.7d48b33a52.webp": 0,
+      "film-portrait-glow-tunnel.4f96fb33ce.webp": 0,
+      "film-portrait-glow-cover.d09e60d13e.webp": 0,
+      "film-portrait-glow-headlights.cf7d703999.webp": 0,
+      "film-portrait-glow-rest.d3d198341d.webp": 0
     }
   }
 }

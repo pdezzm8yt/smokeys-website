@@ -1,4 +1,5 @@
 import type { FilmGlow, FilmStill } from "@/content/intro-video";
+import { INTRO } from "./intro-config";
 import { cutFor, filmUrl, framingVars, variantsFor, WIDE_SCREEN, type Cut, type DeviceProfile, type Variant } from "./intro-film";
 
 /**
@@ -114,6 +115,36 @@ function visibleTimeout(ms: number) {
 }
 
 /**
+ * Judges a download's speed ONCE, when its bytes have been arriving for
+ * INTRO.slowNet.warmupMs: calls `tooSlow` if the speed so far says the whole
+ * file would take longer than INTRO.slowNet.budgetMs from its first byte. The
+ * clock starts at the first byte (a slow start isn't a slow connection) and
+ * runs only while the page is visible (a background tab's downloads may be
+ * held back). A download that passes is never judged again (one that slows
+ * down or stops later is left to the timeout), so a nearly finished film is
+ * never thrown away.
+ */
+function speedCheck(tooSlow: () => void) {
+  const { warmupMs, budgetMs } = INTRO.slowNet;
+  let from: { at: number; bytes: number } | null = null;
+  let judged = false;
+  return (bytes: number, total: number) => {
+    if (judged) return;
+    if (!visible()) {
+      from = null; // measured afresh once the page is back on screen
+      return;
+    }
+    const now = performance.now();
+    const start = (from ??= { at: now, bytes });
+    const spent = now - start.at;
+    if (spent < warmupMs) return;
+    judged = true;
+    const left = Math.max(0, total - bytes) / ((bytes - start.bytes) / spent);
+    if (spent + left > budgetMs) tooSlow();
+  };
+}
+
+/**
  * Point the video at the downloaded file, make the browser decode real frames
  * (a muted play() + pause() does that on every browser, iOS included; if
  * autoplay is blocked that's fine: the film is only ever seeked), park it on
@@ -152,7 +183,7 @@ export class FilmMedia {
 
   constructor(
     root: HTMLElement,
-    /** Reduced motion / Save-Data: stills only, nothing downloaded. */
+    /** Reduced motion / Save-Data / 2G: stills only, nothing downloaded. */
     readonly still: boolean,
   ) {
     this.root = root;
@@ -214,6 +245,7 @@ export class FilmMedia {
   /**
    * Download and prime the film, reporting progress 0–1. Resolves true when
    * it's ready, false if it can't be (still mode, nothing playable, cancel(),
+   * a download judged early on to take longer than INTRO.slowNet.budgetMs,
    * or `timeoutMs` of the page being visible passed: the download is then
    * cancelled and the story is told with the stills instead).
    */
@@ -236,11 +268,15 @@ export class FilmMedia {
       for (const variant of this.candidates) {
         if (settled) return;
         try {
+          // A download on course to take too long stops the load at once (as cancel() does): the stills, not a long wait.
+          const checkSpeed = speedCheck(stopped);
           const url = await download(
             variant.src,
             (bytes, size) => {
-              shown = Math.max(shown, Math.min(0.95, bytes / (size || expected)));
+              const total = size || expected;
+              shown = Math.max(shown, Math.min(0.95, bytes / total));
               onProgress(shown);
+              checkSpeed(bytes, total);
             },
             abort.signal,
           );

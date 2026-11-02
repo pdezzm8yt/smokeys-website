@@ -13,6 +13,13 @@
 export const INTRO = {
   /** The film must be in memory within this, or the story is told with stills (scrolling unlocks anyway). */
   filmTimeoutMs: 25_000,
+  /**
+   * A slow connection gets the stills without that wait: at once on 2G
+   * (navigator.connection, where the browser reports it), or when the film's
+   * download, judged once its bytes have been arriving for `warmupMs`, is on
+   * course to take longer than `budgetMs` from its first byte (it's then cancelled).
+   */
+  slowNet: { warmupMs: 2_000, budgetMs: 10_000 },
   /** The loader waits at most this long for the engine code. */
   engineTimeoutMs: 10_000,
 
