@@ -142,7 +142,7 @@ export function PeriodStatus({ className, announce = false }: { className?: stri
             Saved for your quote: <strong className="font-semibold text-foreground">{chosen === "day" ? "a day ride" : "a night ride"}</strong>. You&apos;ll pick the exact date and time when you request it.
           </>
         ) : (
-          <>No preference yet. Choose above, or click the sun or the moon in the sky.</>
+          <>No preference yet. Click the sun or the moon in the sky, or use the day/night switch.</>
         )}
       </p>
       {announce && (

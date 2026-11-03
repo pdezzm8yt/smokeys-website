@@ -1,16 +1,23 @@
 import type { CSSProperties } from "react";
 import { ButtonLink } from "@/components/ui/button";
 import { FILM_GLOWS, FILM_STILLS, type FilmGlow, type FilmStill } from "@/content/intro-video";
-import { quoteHref, site } from "@/content/site";
+import { quoteHref } from "@/content/site";
 import { cn } from "@/lib/cn";
 import { cutFor, filmUrl, framingVars, WIDE_SCREEN, type Cut } from "./intro-film";
 
 /*
- * The intro's layers, server-rendered. The FILM provides all the movement;
- * the GSAP engine (intro-engine.ts) only scrubs it with the scroll, moves the
- * camera around it and fades the layers. Files, framing and story beats come
- * from src/content/intro-video.ts (+ the generated manifest).
+ * The tunnel scene's layers, server-rendered. The FILM provides all the
+ * movement; the GSAP engine (intro-engine.ts) only scrubs it with the scroll,
+ * moves the camera around it and fades the layers. Files, framing and story
+ * beats come from src/content/intro-video.ts (+ the generated manifest).
  */
+
+/**
+ * The stills shown in the scene: the opening frame, and the bus out on the
+ * road (the build also makes a "cover" frame from the old dusty swap, which
+ * the dark story doesn't show).
+ */
+const SHOWN_STILLS = FILM_STILLS.filter((name): name is Exclude<FilmStill, "cover"> => name !== "cover");
 
 /** The cut tall screens get, and the one wide screens get (the same one while only one exists). */
 const tall = cutFor(false);
@@ -54,7 +61,7 @@ export function FilmLayer() {
       </div>
       <div data-camera className="absolute inset-0 origin-[50%_55%] will-change-transform">
         <div data-film-box className="intro-film" style={style}>
-          {FILM_STILLS.map((name) => (
+          {SHOWN_STILLS.map((name) => (
             <CutPicture
               key={name}
               frame={{ kind: "still", name }}
@@ -77,12 +84,6 @@ export function FilmLayer() {
         </div>
       </div>
       <p
-        data-intro-wordmark
-        className="absolute top-[max(5rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 font-display text-xs font-bold tracking-[0.6em] whitespace-nowrap text-white/80 [text-shadow:0_1px_12px_rgb(0_0_0/0.6)] sm:top-[max(1.75rem,env(safe-area-inset-top))] sm:text-sm"
-      >
-        {site.name.toUpperCase()}
-      </p>
-      <p
         data-caption
         className="invisible absolute inset-x-4 top-[18%] text-center font-display text-2xl font-black tracking-tight text-white opacity-0 [text-shadow:0_3px_0_#3a1f14,0_0_24px_rgb(58_31_20/0.5)] sm:text-4xl"
       >
@@ -93,8 +94,9 @@ export function FilmLayer() {
 }
 
 /**
- * Where the film comes to rest: the page's H1 and main calls to action, over
- * a scrim that keeps them readable on any footage.
+ * Where the bus comes out onto the road: the page's H1 and main calls to
+ * action appear in the scene itself (no separate hero), over a scrim that
+ * keeps them readable on any footage.
  */
 export function IntroCopy() {
   return (
@@ -122,8 +124,9 @@ export function IntroCopy() {
         {/* The copy stays hidden until the timeline brings it in: opacity only, so the H1 stays readable
             to screen readers throughout; the CTAs are also invisible (out of the Tab order) until then. */}
         <div data-bus-copy data-bus-ctas className="invisible mt-6 flex flex-wrap items-center justify-center gap-3 opacity-0 short:mt-3 short:flex-nowrap short:justify-start short:gap-2">
-          <ButtonLink href={quoteHref} size="lg" className="short:h-10 short:px-4 short:text-sm">
-            Get a Quote
+          {/* Opens the booking panel over the world (ActionDrawer); without JS, the contact scene. */}
+          <ButtonLink href={quoteHref} data-action="book" size="lg" className="short:h-10 short:px-4 short:text-sm">
+            Book your ride
           </ButtonLink>
           <ButtonLink href="#bus" size="lg" variant="secondary" className="short:h-10 short:px-4 short:text-sm">
             See the Bus

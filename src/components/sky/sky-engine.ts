@@ -69,7 +69,8 @@ export class SkyEngine {
   /** Seconds of wind the clouds have drifted (only advances while they're drawn: no jump after a hidden tab). */
   private skyTime = 0;
   private dirty = true;
-  private scroll = 0;
+  /** How far the page has moved, in screens: [along the sideways world, down the page]. */
+  private scroll: [number, number] = [0, 0];
   private visible = true;
   private reduced: boolean;
   private readonly tier: "desktop" | "phone" | "low";
@@ -126,7 +127,8 @@ export class SkyEngine {
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_COLOUR[this.phase < 0.5 ? "day" : "night"]);
     this.root.dataset.ready = "";
     window.addEventListener("resize", this.onResize);
-    window.addEventListener("scroll", this.onScroll, { passive: true });
+    // Capturing: the sideways world is a scroll container, whose scroll events don't reach the window otherwise.
+    window.addEventListener("scroll", this.onScroll, { passive: true, capture: true });
     document.addEventListener("visibilitychange", this.onVisibility);
     document.addEventListener("click", this.onClick);
     document.addEventListener("pointermove", this.onPointerMove, { passive: true });
@@ -195,7 +197,7 @@ export class SkyEngine {
     window.clearTimeout(this.shootingTimer);
     window.clearTimeout(this.resizeTimer);
     window.removeEventListener("resize", this.onResize);
-    window.removeEventListener("scroll", this.onScroll);
+    window.removeEventListener("scroll", this.onScroll, { capture: true });
     document.removeEventListener("visibilitychange", this.onVisibility);
     document.removeEventListener("click", this.onClick);
     document.removeEventListener("pointermove", this.onPointerMove);
@@ -357,7 +359,7 @@ export class SkyEngine {
         const { colors, source, glow } = this.uniforms;
         this.clouds.draw({
           time: drifting ? this.skyTime : 0,
-          scroll: this.reduced ? 0 : this.scroll,
+          scroll: this.reduced ? [0, 0] : this.scroll,
           lit: colors.cloudLit,
           shade: colors.cloudShade,
           light: colors.light,
@@ -395,8 +397,10 @@ export class SkyEngine {
   };
 
   private readonly onScroll = () => {
-    // Scroll in screen heights: each cloud layer drifts by its own share of it (parallax).
-    this.scroll = window.scrollY / Math.max(1, window.innerHeight);
+    // How far along, in screens: each cloud layer drifts by its own share of it (parallax). Sideways
+    // through the world the clouds drift sideways, down the page they drift up.
+    const world = document.documentElement.dataset.axis === "x" ? document.querySelector<HTMLElement>("[data-world]") : null;
+    this.scroll = [(world?.scrollLeft ?? 0) / Math.max(1, window.innerWidth), window.scrollY / Math.max(1, window.innerHeight)];
     if (!this.reduced) {
       this.dirty = true;
       this.schedule();

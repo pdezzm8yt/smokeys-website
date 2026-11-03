@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { noScriptBandCss } from "@/components/intro/intro-film";
+import { ActionDrawer } from "@/components/actions/action-drawer";
 import { Providers } from "@/components/providers";
-import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { LivingSky } from "@/components/sky/living-sky";
 import { site } from "@/content/site";
@@ -34,20 +34,19 @@ export const viewport: Viewport = {
 };
 
 /**
- * Runs before first paint on the homepage. At the top, the intro's branded
- * loader shows (and the page holds still, so an early scroll can't run ahead
- * of the film) until the intro's JS takes over, and the header stays out of
- * the way until the bus is revealed; a deep link (#bus…) starts with the header.
- * Failsafe: if the intro's JS hasn't taken over the loader within 12 s (it sets
+ * Runs before first paint on the homepage, which is one continuous world
+ * (src/components/world): it runs sideways (html[data-axis="x"]) unless the
+ * screen is too short for side-by-side scenes, where it's a column.
+ * At the start of the world, the tunnel scene's branded loader shows (and the
+ * world holds still, so an early swipe can't run ahead of the film) until its
+ * JS takes over; a deep link (#bus…) or a restored position isn't held.
+ * Failsafe: if the scene's JS hasn't taken over the loader within 12 s (it sets
  * data-intro-loading="js"), show the finished hero instead of a stuck loader.
- * Until JS takes over, Skip already works (finished hero, at the end of the
- * intro, focus on the headline) and a restored scroll position (reload, back)
- * is let go of.
  * Wrapped in a function: a classic script's top-level `var`s are window
  * properties, and some names are the browser's own (`var top=…` is silently
  * ignored: window.top can't be replaced).
  */
-const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){if(location.hash&&location.hash!=="#top"){d.dataset.introStage="end"}else{d.dataset.introStage="film";d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},intro=function(){return document.getElementById("top")},end=function(){var s=intro();return s?s.offsetTop+s.offsetHeight-innerHeight:0};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";delete d.dataset.introStage;free()}},12000);document.addEventListener("click",function k(e){var t=e.target;if(js()){document.removeEventListener("click",k,true);return}if(t&&t.closest&&t.closest('[data-intro-hint="skip"]')){d.dataset.introFinal="";d.dataset.introStage="end";free();scrollTo({top:end(),behavior:"instant"});var h=document.getElementById("intro-title");if(h)h.focus({preventScroll:true})}},true);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r);return}if(scrollY>8){free();if(scrollY>=end()-8)d.dataset.introStage="end"}},{passive:true})}}}catch(e){}})()`;
+const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){d.dataset.axis=matchMedia("(max-height: 30rem)").matches?"y":"x";if(!location.hash||location.hash==="#top"){d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},at=function(){var w=document.querySelector("[data-world]");return d.dataset.axis==="x"&&w?w.scrollLeft:scrollY};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";free()}},12000);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r,true);return}if(at()>8)free()},{passive:true,capture:true})}}}catch(e){}})()`;
 
 /**
  * Before first paint on every page: day or night sky (and the matching page
@@ -57,8 +56,8 @@ const introBootScript = `(function(){try{var d=document.documentElement;if(locat
  */
 const skyBootScript = `(function(){try{var d=document.documentElement,p;try{p=JSON.parse(localStorage.getItem("smokeys:booking")||"{}").period}catch(e){}var h=new Date().getHours();d.dataset.sky=p==="day"||p==="night"?p:(h>=6&&h<19?"day":"night")}catch(e){}})()`;
 
-/** No JavaScript: no scroll story, just the finished hero (the bus, SMOKEY'S and the CTAs). */
-const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim],[data-stage-fade]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-wordmark],[data-intro-hint]){display:none}${noScriptBandCss()}`;
+/** No JavaScript: the world is a column, and the tunnel scene is just its finished hero (the bus, SMOKEY'S and the CTAs). */
+const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-hint],[data-fx]){display:none}${noScriptBandCss()}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -82,7 +81,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Providers>
           <SiteHeader />
           {children}
-          <SiteFooter />
+          {/* Book, quote, schedule, message: opened over the page by any [data-action] link. */}
+          <ActionDrawer />
         </Providers>
       </body>
     </html>

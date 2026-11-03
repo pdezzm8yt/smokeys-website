@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Checks for the living sky (src/components/sky) in Chromium, GPU on.
+ * Checks for the living sky (src/components/sky) in Chromium, GPU on, behind the homepage's world
+ * (src/components/world): sideways (html[data-axis="x"]: [data-world] scrolls along x, the page itself
+ * never scrolls) wherever the screen is at least 30rem tall, a column (window.scrollY) on shorter ones.
  *
  *   npm run test:sky -- [baseUrl] [--quick]
  *
@@ -9,23 +11,39 @@
  *   1  the first sky follows the local time (day at 10:00, night at 22:00), no preference saved
  *   2  header switch → night: what's DRAWN passes through sunset and twilight (the gradient
  *      keyframe layers), the sun sets, the stars come out; the theme flips at mid-twilight;
- *      the preference is saved and the quote's text/email carry it
- *   3  the big picker by keyboard → day: back through twilight and sunrise
- *   4  clicking the moon / the sun on the bare sky switches; a click on a panel over the moon doesn't
+ *      the preference is saved and the Contact scene's and the booking panel's text/email carry it
+ *   3  the big picker (the world moved to "Day or night?") by keyboard → day: back through twilight
+ *      and sunrise; the arrow key moves the choice, never the world
+ *   4  clicking the moon / the sun on the bare sky (a gap between two scenes' panels, moved under it by
+ *      the world) switches; a click on a panel over the moon doesn't, nor one on the tunnel scene
  *   5  a preference change keeps every other booking detail
- *   6  reduced motion: a short change, the sun and moon never travel, no twinkle, still clouds
+ *   6  reduced motion: a short change, the sun and moon never travel, no twinkle, no cloud parallax
+ *      wherever the world is, still clouds
  *   7  shooting stars: now and then at night, never by day or with reduced motion (skipped with --quick)
- *   8  the sky does no work under the intro film
+ *   8  the sky does no work under the tunnel scene: paused (and no cloud drawn) at the start of the world
+ *      and while the tunnel's stage still covers the screen, running past the tunnel, paused again back
  *   9  phone: the switch lives in the menu drawer; its button names the drawer (aria-controls) and says
- *      whether it's open (aria-expanded) through Esc, the backdrop and a link
- *   10 readability: measured text contrast on the panels, day and night, mid-screen and just
- *      under the header; the 404 page too
- *   11 frame rate: scrolling the page, and during a change (bus panel in view and not), desktop
- *      and phone at 4x CPU
+ *      whether it's open (aria-expanded) through Esc, the backdrop and a link; the page itself never
+ *      overflows (the world scrolls inside the screen); a drawer link glides the world to its scene's
+ *      start (hash, focus); the drawer's "Book your ride" opens the booking panel over the world
+ *      (closing the drawer, focus inside, the chosen sky in it) and Esc gives focus back to the menu button
+ *   10 readability: measured text contrast on the panels, day and night: sideways (desktop) with the
+ *      world moved to put each target in place (its scene arrived, and as near mid-screen as its panel
+ *      allows at rest), the header's links over a scene and over the tunnel's film; down the column
+ *      (844x390) mid-screen and just under the header; the 404 page too
+ *   11 frame rate: sweeping the world sideways, and during a change (the world at the bus scene and at
+ *      the FAQ), desktop and phone at 4x CPU
  *   12 no JavaScript: a night sky with no sun
- *   13 "Meet the bus" on a phone (its panel follows the sky): a hotspot tapped on the photo brings
- *      its text on screen, moving the page only if it must, and tells screen readers; a pick in
- *      the list isn't announced again; the taps never reach the sky
+ *   13 "Meet the bus" (its panel follows the sky): on a phone the feature list sits beside the photo, a
+ *      screen on: a hotspot tapped on the photo brings its text on screen by moving the WORLD sideways,
+ *      and tells screen readers; a pick in the list isn't announced again; the taps never reach the sky.
+ *      On a desktop, where the photo and the list fit side by side, a tap with its text already on
+ *      screen leaves the world where it is
+ *   14 the clouds' parallax follows the world: the shader's uScroll (hooked on uniform2f) is the world's
+ *      place in screens along x (0 down the page), after a jump, a mouse wheel turned sideways and a key
+ *   15 the column (a phone on its side, 844x390): no sideways world; the header switch → night draws the
+ *      same change and is used by the Contact scene and the booking panel; the picker by keyboard → day
+ *      (the page doesn't move); the parallax follows the page down; paused under the tunnel at the top
  */
 import { chromium } from "playwright-core";
 import sharp from "sharp";
@@ -36,6 +54,8 @@ const quick = args.includes("--quick");
 const browser = await chromium.launch({ args: ["--use-angle=metal", "--enable-gpu-rasterization", "--ignore-gpu-blocklist"] });
 const desktop = { viewport: { width: 1280, height: 800 } };
 const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
+/** A phone on its side: too short for side-by-side scenes, so the world is a column (world-axis.ts: SHORT_SCREEN). */
+const landscape = { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true };
 const results = {};
 const failures = [];
 const uncaught = [];
@@ -45,25 +65,108 @@ const check = (name, ok, detail) => {
 };
 const watch = (page) => page.on("pageerror", (e) => uncaught.push(e.message));
 
-async function open(ctxOpts = {}, { prefs, url = `${URL}#bus`, hour } = {}) {
+/**
+ * Before any page script: records what the clouds' shader is given. `uScroll` (the parallax offset, in
+ * screens: [along the world, down the page]) is recognised by its uniform location; draws are counted
+ * on the clouds' canvas only.
+ */
+function hookClouds() {
+  window.__clouds = { scroll: null, sent: 0, maxAbs: 0, draws: 0 };
+  const scrollLocations = new WeakSet();
+  const gl = WebGLRenderingContext.prototype;
+  const getUniformLocation = gl.getUniformLocation;
+  gl.getUniformLocation = function (program, name) {
+    const loc = getUniformLocation.call(this, program, name);
+    if (name === "uScroll" && loc) scrollLocations.add(loc);
+    return loc;
+  };
+  const uniform2f = gl.uniform2f;
+  gl.uniform2f = function (loc, x, y) {
+    if (loc && scrollLocations.has(loc)) {
+      const c = window.__clouds;
+      c.scroll = [x, y];
+      c.sent++;
+      c.maxAbs = Math.max(c.maxAbs, Math.abs(x), Math.abs(y));
+    }
+    return uniform2f.call(this, loc, x, y);
+  };
+  const drawArrays = gl.drawArrays;
+  gl.drawArrays = function (...a) {
+    if (this.canvas?.hasAttribute?.("data-sky-clouds")) window.__clouds.draws++;
+    return drawArrays.apply(this, a);
+  };
+}
+const clouds = (page) => page.evaluate(() => ({ ...window.__clouds }));
+const resetClouds = (page) => page.evaluate(() => Object.assign(window.__clouds, { sent: 0, maxAbs: 0, draws: 0 }));
+
+async function open(ctxOpts = {}, { prefs, url = `${URL}#bus`, hour, gl = false } = {}) {
   const ctx = await browser.newContext({ ...desktop, ...ctxOpts });
   const page = await ctx.newPage();
   watch(page);
   if (hour !== undefined) await page.clock.setFixedTime(new Date(2026, 9, 28, hour, 0, 0));
   if (prefs) await page.addInitScript((p) => localStorage.setItem("smokeys:booking", JSON.stringify(p)), prefs);
+  if (gl) await page.addInitScript(hookClouds);
   await page.goto(url, { waitUntil: "load" });
   await page.waitForFunction(() => document.querySelector("[data-sky-layer]")?.hasAttribute("data-ready"), null, { timeout: 20000 });
-  // Programmatic scrolls are instant, and the hash scroll has settled before anything is measured.
+  // Programmatic scrolls of the column are instant (the world has no scroll-behavior), and the deep link has landed.
   await page.evaluate(() => (document.documentElement.style.scrollBehavior = "auto"));
   await page.waitForTimeout(900);
   return { ctx, page };
 }
+/** Until the tunnel scene's film is in (or its stills or the finished hero took over) and the world is free to move. */
+const introSettled = (page) =>
+  page
+    .waitForFunction(
+      () => {
+        const h = document.documentElement;
+        const settled = document.querySelector("[data-film]")?.hasAttribute("data-ready") || h.hasAttribute("data-intro-still") || h.hasAttribute("data-intro-failed");
+        return settled && !h.hasAttribute("data-intro-pending") && !h.hasAttribute("data-intro-loading") && !h.hasAttribute("data-scroll-lock");
+      },
+      null,
+      { timeout: 60000 },
+    )
+    .catch(() => {});
+/** Which way the world runs and where it is: px along it (the world's scrollLeft sideways, scrollY down the column). */
+const place = (page) =>
+  page.evaluate(() => {
+    const w = document.querySelector("[data-world]");
+    const sideways = document.documentElement.dataset.axis === "x";
+    return { axis: sideways ? "x" : "y", at: Math.round(sideways ? w.scrollLeft : scrollY), max: sideways ? w.scrollWidth - w.clientWidth : document.documentElement.scrollHeight - innerHeight, screen: sideways ? w.clientWidth : innerHeight };
+  });
+/** Two frames: scroll-driven animations, IntersectionObservers and the sky's next draw have caught up. */
+const frames = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+/** Move the world (instantly) to `px` along it. */
+async function moveWorld(page, px) {
+  await page.evaluate((px) => {
+    const w = document.querySelector("[data-world]");
+    if (document.documentElement.dataset.axis === "x") w.scrollTo({ left: px, behavior: "instant" });
+    else window.scrollTo({ top: px, behavior: "instant" });
+  }, px);
+  await frames(page);
+}
+/** Where `sel`'s scene starts along the world (px), and the tunnel scene's resting point (its stage about to let go). */
+const sceneStart = (page, sel) =>
+  page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    const scene = el?.closest("[data-scene]") ?? el;
+    const w = document.querySelector("[data-world]");
+    if (!scene) return null;
+    if (document.documentElement.dataset.axis === "x") return scene.getBoundingClientRect().left - w.getBoundingClientRect().left + w.scrollLeft;
+    return scene.getBoundingClientRect().top + scrollY;
+  }, sel);
+const tunnelEnd = (page) => page.evaluate(() => document.getElementById("top").offsetWidth - document.querySelector("[data-world]").clientWidth);
+const toScene = async (page, sel) => moveWorld(page, await sceneStart(page, sel));
+
 const sky = (page) =>
   page.evaluate(() => {
     const h = document.documentElement;
-    const status = [...document.querySelectorAll("#quote p")].find((p) => /preference|Saved for your quote/.test(p.textContent ?? ""))?.textContent ?? "";
-    const sms = document.querySelector('#quote a[href^="sms:"]')?.getAttribute("href") ?? "";
-    const mail = document.querySelector('#quote a[href^="mailto:"]')?.getAttribute("href") ?? "";
+    const status = [...document.querySelectorAll("#contact p")].find((p) => /preference|Saved for your quote/.test(p.textContent ?? ""))?.textContent ?? "";
+    const sms = document.querySelector('#contact a[href^="sms:"]')?.getAttribute("href") ?? "";
+    const mail = document.querySelector('#contact a[href^="mailto:"]')?.getAttribute("href") ?? "";
+    // The booking panel (ActionDrawer): rendered, closed, until an action opens it.
+    const panel = document.querySelector('[data-field="date"]')?.closest("dialog");
+    const panelSms = panel?.querySelector('a[href^="sms:"]')?.getAttribute("href") ?? "";
+    const panelMail = panel?.querySelector('a[href^="mailto:"]')?.getAttribute("href") ?? "";
     return {
       sky: h.dataset.sky,
       changing: h.hasAttribute("data-sky-changing"),
@@ -72,6 +175,8 @@ const sky = (page) =>
       smsSaysNight: decodeURIComponent(sms).includes("a night ride"),
       smsSaysDay: decodeURIComponent(sms).includes("a day ride"),
       mailSaysNight: decodeURIComponent(mail).includes("a night ride"),
+      panelSaysNight: decodeURIComponent(panelSms).includes("a night ride") && decodeURIComponent(panelMail).includes("a night ride"),
+      panelSaysDay: decodeURIComponent(panelSms).includes("a day ride"),
     };
   });
 /** What the sky DRAWS, every ~100 ms for `ms`: keyframe layer opacities, the sun, the stars, the theme. */
@@ -105,6 +210,22 @@ const nonDecreasing = (xs) => xs.every((v, i) => i === 0 || v >= xs[i - 1] - 0.0
 const nonIncreasing = (xs) => xs.every((v, i) => i === 0 || v <= xs[i - 1] + 0.002);
 const headerRadio = (page, name) => page.locator(`[data-site-header] > div [role=radio][aria-label="${name}"]`);
 const pickerRadio = (page, name) => page.locator("#day-night [role=radio]", { hasText: name });
+/** The checks of a change to night (2 and 15), on what was drawn (`s`) and the state after (`end`). */
+function checkToNight(n, s, end) {
+  const flip = s.find((x) => x.theme === "night");
+  check(`${n} sunset, then twilight, then night are drawn`, Math.max(...s.map((x) => x.sunset)) >= 0.95 && Math.max(...s.map((x) => x.twilight)) >= 0.95 && s.at(-1).night === 1, s.map((x) => [x.sunset, x.twilight, x.night]));
+  check(`${n} night arrives smoothly (no jumps back)`, nonDecreasing(s.map((x) => x.night)) && nonDecreasing(s.map((x) => x.twilight)), s.map((x) => x.night));
+  check(`${n} the sun sets (down, then gone); the stars come out`, nonDecreasing(s.map((x) => x.sunY)) && s.at(-1).sun === 0 && s.at(-1).stars >= 0.99, s.map((x) => [x.sunY, x.sun, x.stars]));
+  check(`${n} theme flips at mid-twilight`, flip && flip.sunset >= 0.99 && flip.twilight >= 0.15 && flip.twilight <= 0.6 && flip.night === 0, flip);
+  check(`${n} preference saved and used (Contact scene, booking panel)`, end.stored.period === "night" && end.smsSaysNight && end.mailSaysNight && end.panelSaysNight && /night ride/.test(end.quoteStatus) && !end.changing, end);
+  return flip;
+}
+/** The checks of a change back to day by the picker's arrow key (3 and 15). */
+function checkBackToDay(n, b, endDay, focused) {
+  check(`${n} back through twilight and sunrise`, nonIncreasing(b.map((x) => x.night)) && nonIncreasing(b.map((x) => x.twilight)) && b.at(-1).sunset === 0 && b.at(-1).sun === 1 && nonIncreasing(b.map((x) => x.sunY)), b.map((x) => [x.night, x.twilight, x.sunset, x.sun]));
+  check(`${n} arrow key moved the choice and focus`, endDay.stored.period === "day" && focused === "Day ride" && endDay.smsSaysDay && endDay.panelSaysDay && endDay.sky === "day", { endDay, focused });
+}
+const focusedRadio = (page) => page.evaluate(() => (document.activeElement?.textContent?.trim().startsWith("Day ride") ? "Day ride" : document.activeElement?.textContent?.trim()));
 
 // 1. First visit: the sky follows the local time; nothing is saved until the visitor chooses.
 {
@@ -123,70 +244,120 @@ const pickerRadio = (page, name) => page.locator("#day-night [role=radio]", { ha
 // 2. Header switch → night: through sunset and twilight, the sun sets, stars come out; the theme flips at mid-twilight.
 {
   const { ctx, page } = await open({}, { prefs: { period: "day" } });
+  const at = await place(page);
   await headerRadio(page, "Night ride").click();
   const s = await sampleSky(page, 6200);
-  const flip = s.find((x) => x.theme === "night");
   const end = await sky(page);
-  results["2 switch to night"] = { samples: s.filter((_, i) => i % 6 === 0), flip, end };
-  check("2 sunset, then twilight, then night are drawn", Math.max(...s.map((x) => x.sunset)) >= 0.95 && Math.max(...s.map((x) => x.twilight)) >= 0.95 && s.at(-1).night === 1, s.map((x) => [x.sunset, x.twilight, x.night]));
-  check("2 night arrives smoothly (no jumps back)", nonDecreasing(s.map((x) => x.night)) && nonDecreasing(s.map((x) => x.twilight)), s.map((x) => x.night));
-  check("2 the sun sets (down, then gone); the stars come out", nonDecreasing(s.map((x) => x.sunY)) && s.at(-1).sun === 0 && s.at(-1).stars >= 0.99, s.map((x) => [x.sunY, x.sun, x.stars]));
-  check("2 theme flips at mid-twilight", flip && flip.sunset >= 0.99 && flip.twilight >= 0.15 && flip.twilight <= 0.6 && flip.night === 0, flip);
-  check("2 preference saved and used", end.stored.period === "night" && end.smsSaysNight && end.mailSaysNight && /night ride/.test(end.quoteStatus) && !end.changing, end);
+  const flip = checkToNight(2, s, end);
+  results["2 switch to night"] = { world: at, samples: s.filter((_, i) => i % 6 === 0), flip, end };
+  check("2 sideways world (the sky behind it)", at.axis === "x", at);
 
-  // 3. The big picker, by keyboard → day: back down (twilight, sunrise, morning).
-  await page.evaluate(() => document.getElementById("day-night")?.scrollIntoView({ block: "center" }));
+  // 3. The big picker, by keyboard → day: back down (twilight, sunrise, morning). Arrows are also the world's
+  //    keys, but on a radio they belong to the radio: the world stays where it is.
+  await toScene(page, "#day-night");
+  await page.waitForTimeout(300);
   await pickerRadio(page, "Night ride").focus();
+  const before = await place(page);
   await page.keyboard.press("ArrowLeft");
   const b = await sampleSky(page, 6200);
-  const focused = await page.evaluate(() => (document.activeElement?.textContent?.trim().startsWith("Day ride") ? "Day ride" : document.activeElement?.textContent?.trim()));
+  const focused = await focusedRadio(page);
   const endDay = await sky(page);
-  results["3 keyboard back to day"] = { samples: b.filter((_, i) => i % 6 === 0), focused, end: endDay };
-  check("3 back through twilight and sunrise", nonIncreasing(b.map((x) => x.night)) && nonIncreasing(b.map((x) => x.twilight)) && b.at(-1).sunset === 0 && b.at(-1).sun === 1 && nonIncreasing(b.map((x) => x.sunY)), b.map((x) => [x.night, x.twilight, x.sunset, x.sun]));
-  check("3 arrow key moved the choice and focus", endDay.stored.period === "day" && focused === "Day ride" && endDay.smsSaysDay && endDay.sky === "day", { endDay, focused });
+  const after = await place(page);
+  results["3 keyboard back to day"] = { samples: b.filter((_, i) => i % 6 === 0), focused, end: endDay, world: { before: before.at, after: after.at } };
+  checkBackToDay(3, b, endDay, focused);
+  check("3 the arrow key didn't move the world", before.axis === "x" && Math.abs(after.at - before.at) <= 1, { before, after });
   await ctx.close();
 }
 
-// 4. The sky itself: the moon (by day) and the sun on the bare sky switch; a click on a panel over the moon doesn't.
+// 4. The sky itself: the moon (by day) and the sun on the bare sky switch; a click on a panel over the moon, or on
+//    the tunnel scene, doesn't.
 {
   const { ctx, page } = await open({}, { prefs: { period: "day" } });
-  /** Scroll so the body sits in a gap between panels (bare) or inside a panel (covered); return where to click. */
+  await introSettled(page);
+  /**
+   * Move the world so the body sits in a gap between two scenes' panels (bare) or on a panel (covered); return
+   * where to click. Panels glide in as they arrive (a scroll-driven transform), so every spot is re-measured.
+   */
   const aim = (which, covered) =>
     page.evaluate(
       async ([which, covered]) => {
+        const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const w = document.querySelector("[data-world]");
         const el = document.querySelector(which === "moon" ? "[data-sky-moon]" : "[data-sky-sun]");
         const centre = () => {
           const r = el.getBoundingClientRect();
           return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
         };
         const t = centre();
-        const panels = [...document.querySelectorAll("main [data-panel]")].map((p) => p.getBoundingClientRect());
+        const at = (x) => w.getBoundingClientRect().left - w.scrollLeft + x; // a place along the world → on screen
+        const along = (x) => x - w.getBoundingClientRect().left + w.scrollLeft; // on screen → along the world
+        const panels = () => [...document.querySelectorAll("main [data-panel], #footer [data-panel]")];
+        const hitAt = (c) => {
+          const hit = document.elementFromPoint(c.x, c.y);
+          // Would anything but the panel keep this click from the sky (sky-engine.ts bodyAt: content, controls)?
+          const content = Boolean(hit?.closest("a,button,input,select,textarea,label,summary,details,dialog,header,footer,p,h1,h2,h3,h4,li,dt,dd,img,picture,video,svg,canvas"));
+          return { onPanel: Boolean(hit?.closest("[data-panel]")), inTunnel: Boolean(hit?.closest("#top")), content, hit: hit?.tagName };
+        };
         if (covered) {
-          const p = panels.find((r) => r.height > 400);
-          window.scrollBy({ top: p.top + p.height / 2 - t.y, behavior: "instant" });
-        } else {
-          for (let i = 1; i < panels.length; i++) {
-            const g0 = panels[i - 1].bottom;
-            const g1 = panels[i].top;
-            if (g1 - g0 >= 40) {
-              window.scrollBy({ top: (g0 + g1) / 2 - t.y, behavior: "instant" });
-              break;
+          // A spot on a panel's own glass (not on its text, media or controls): only the panel keeps it from the sky.
+          for (const p of panels()) {
+            const r0 = p.getBoundingClientRect();
+            if (r0.width < 300 || t.y < r0.top + 40 || t.y > r0.bottom - 40) continue;
+            const from = along(r0.left);
+            for (let dx = 40; dx < r0.width - 40; dx += 24) {
+              w.scrollTo({ left: from + dx - t.x, behavior: "instant" });
+              await frame();
+              const c = centre();
+              const h = hitAt(c);
+              if (h.onPanel && !h.content) return { ...c, ...h, world: Math.round(w.scrollLeft) };
             }
           }
+          return { missing: "no bare glass of a panel under the body" };
         }
-        await new Promise((r) => setTimeout(r, 300));
-        const c = centre();
-        const hit = document.elementFromPoint(c.x, c.y);
-        return { ...c, onPanel: Boolean(hit?.closest("[data-panel]")), hit: hit?.tagName };
+        // Each boundary between two scenes after the tunnel, under the body; the clear sky around it at its height.
+        const scenes = [...document.querySelectorAll("main [data-scene], #footer")];
+        for (let i = 1; i < scenes.length; i++) {
+          const boundary = along(scenes[i].getBoundingClientRect().left);
+          w.scrollTo({ left: boundary - t.x, behavior: "instant" });
+          await frame();
+          const c = centre();
+          const rows = panels().map((p) => p.getBoundingClientRect()).filter((r) => r.top <= c.y && r.bottom >= c.y);
+          const leftEdge = Math.max(-Infinity, ...rows.filter((r) => r.right <= c.x).map((r) => r.right));
+          const rightEdge = Math.min(Infinity, ...rows.filter((r) => r.left >= c.x).map((r) => r.left));
+          const h = hitAt(c);
+          if (!h.onPanel && !h.inTunnel && c.x - leftEdge >= 20 && rightEdge - c.x >= 20)
+            return { ...c, ...h, gap: [Math.round(leftEdge), Math.round(rightEdge)], between: [scenes[i - 1].id, scenes[i].id], world: Math.round(w.scrollLeft), boundaryOnScreen: Math.round(at(boundary)) };
+        }
+        return { missing: "no bare sky under the body" };
       },
       [which, covered],
     );
+  const paused = () => page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"));
+  /** Click there (nothing to click if no such spot was found: the check then fails on `missing`). */
+  const clickAt = async (spot) => spot.missing || (await page.mouse.click(spot.x, spot.y));
   const coveredMoon = await aim("moon", true);
-  await page.mouse.click(coveredMoon.x, coveredMoon.y);
+  await clickAt(coveredMoon);
   await page.waitForTimeout(300);
   const afterPanel = await sky(page);
+  // The tunnel scene over the moon, with the next scene already in (the sky running): its stage keeps its clicks.
+  const moonX = await page.evaluate(() => { const r = document.querySelector("[data-sky-moon]").getBoundingClientRect(); return r.left + r.width / 2; });
+  const { width } = page.viewportSize();
+  await moveWorld(page, (await tunnelEnd(page)) + (width - moonX - 120));
+  await page.waitForTimeout(300);
+  const tunnelMoon = await page.evaluate(() => {
+    const r = document.querySelector("[data-sky-moon]").getBoundingClientRect();
+    const c = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const hit = document.elementFromPoint(c.x, c.y);
+    // (On the stage's own layers, not its text or media: only the tunnel scene keeps this click from the sky.)
+    const content = Boolean(hit?.closest("a,button,p,h1,h2,h3,h4,li,img,picture,video,svg,canvas,[data-panel]"));
+    return { ...c, inTunnel: Boolean(hit?.closest("#top")), content, hit: hit?.tagName, skyRunning: !document.querySelector("[data-sky-layer]").hasAttribute("data-paused") };
+  });
+  await page.mouse.click(tunnelMoon.x, tunnelMoon.y);
+  await page.waitForTimeout(300);
+  const afterTunnel = await sky(page);
   const bareMoon = await aim("moon", false);
-  await page.mouse.click(bareMoon.x, bareMoon.y);
+  const pausedAtMoon = await paused();
+  await clickAt(bareMoon);
   await page.waitForTimeout(6000);
   const afterMoon = await sky(page);
   // Back to day with the header, then click the sun on the bare sky.
@@ -195,13 +366,14 @@ const pickerRadio = (page, name) => page.locator("#day-night [role=radio]", { ha
   const bareSun = await aim("sun", false);
   await headerRadio(page, "Night ride").click();
   await page.waitForTimeout(400); // a moment into the change: the sun is still up
-  await page.mouse.click(bareSun.x, bareSun.y);
+  await clickAt(bareSun);
   await page.waitForTimeout(6000);
   const afterSun = await sky(page);
-  results["4 clicking the sky"] = { coveredMoon, afterPanel: afterPanel.stored.period, bareMoon, afterMoon: afterMoon.stored.period, bareSun, afterSun: afterSun.stored.period };
-  check("4 a click on a panel over the moon doesn't switch", coveredMoon.onPanel && afterPanel.stored.period === "day" && !afterPanel.changing, { coveredMoon, afterPanel });
-  check("4 the moon on the bare sky picks night", !bareMoon.onPanel && afterMoon.stored.period === "night" && afterMoon.sky === "night", { bareMoon, afterMoon });
-  check("4 the sun on the bare sky picks day", !bareSun.onPanel && afterSun.stored.period === "day" && afterSun.sky === "day", { bareSun, afterSun });
+  results["4 clicking the sky"] = { coveredMoon, afterPanel: afterPanel.stored.period, tunnelMoon, afterTunnel: afterTunnel.stored.period, bareMoon, pausedAtMoon, afterMoon: afterMoon.stored.period, bareSun, afterSun: afterSun.stored.period };
+  check("4 a click on a panel over the moon doesn't switch", !coveredMoon.missing && coveredMoon.onPanel && !coveredMoon.content && afterPanel.stored.period === "day" && !afterPanel.changing, { coveredMoon, afterPanel });
+  check("4 a click on the tunnel scene over the moon doesn't switch", tunnelMoon.inTunnel && !tunnelMoon.content && tunnelMoon.skyRunning && afterTunnel.stored.period === "day" && !afterTunnel.changing, { tunnelMoon, afterTunnel });
+  check("4 the moon on the bare sky picks night", !bareMoon.missing && !bareMoon.onPanel && !pausedAtMoon && afterMoon.stored.period === "night" && afterMoon.sky === "night", { bareMoon, afterMoon });
+  check("4 the sun on the bare sky picks day", !bareSun.missing && !bareSun.onPanel && afterSun.stored.period === "day" && afterSun.sky === "day", { bareSun, afterSun });
   await ctx.close();
 }
 
@@ -216,11 +388,13 @@ const pickerRadio = (page, name) => page.locator("#day-night [role=radio]", { ha
   await ctx.close();
 }
 
-// 6. Reduced motion: a short crossfade where nothing travels, no twinkle, still clouds.
+// 6. Reduced motion: a short crossfade where nothing travels, no twinkle, no parallax, still clouds.
 {
-  const { ctx, page } = await open({ reducedMotion: "reduce" }, { prefs: { period: "day" } });
+  const { ctx, page } = await open({ reducedMotion: "reduce" }, { prefs: { period: "day" }, gl: true });
   const pos = () => page.evaluate(() => ["[data-sky-sun]", "[data-sky-moon]"].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]; }));
   const before = await pos();
+  const world = await place(page);
+  await resetClouds(page);
   await headerRadio(page, "Night ride").click();
   const during = [];
   for (let i = 0; i < 6; i++) {
@@ -231,21 +405,25 @@ const pickerRadio = (page, name) => page.locator("#day-night [role=radio]", { ha
   const done = await sky(page);
   const drawn = (await sampleSky(page, 0))[0];
   const twinkle = await page.evaluate(() => getComputedStyle(document.querySelector("[data-sky-stars] canvas")).animationName);
-  await page.evaluate(() => document.querySelector("#faq")?.scrollIntoView({ block: "start" }));
-  await page.addStyleTag({ content: "main, header, footer { visibility: hidden !important; }" });
+  // Drawn through the change with the world far along (the bus scene, a few screens in): never offset by it.
+  const parallax = await clouds(page);
+  await toScene(page, "#faq");
+  // Everything over the sky hidden (the world with its scenes and road, the header, the guide bus, the progress line).
+  await page.addStyleTag({ content: "body > :not([data-sky-layer]), body > :not([data-sky-layer]) * { visibility: hidden !important; }" });
   await page.waitForTimeout(400);
-  const clouds = page.locator("[data-sky-clouds]");
-  const a = await clouds.screenshot();
+  const cloudCanvas = page.locator("[data-sky-clouds]");
+  const a = await cloudCanvas.screenshot();
   await page.waitForTimeout(2500);
-  const b = await clouds.screenshot();
+  const b = await cloudCanvas.screenshot();
   const [sa, sb] = await Promise.all([sharp(a).raw().toBuffer(), sharp(b).raw().toBuffer()]);
   let diff = 0;
   for (let i = 0; i < sa.length; i++) diff += Math.abs(sa[i] - (sb[i] ?? 0));
   const moved = during.some((p) => JSON.stringify(p) !== JSON.stringify(before));
-  results["6 reduced motion"] = { before, during, done: { sky: done.sky, changing: done.changing, night: drawn.night }, twinkle, cloudPixelDiff: diff };
+  results["6 reduced motion"] = { before, during, done: { sky: done.sky, changing: done.changing, night: drawn.night }, twinkle, parallax: { world, ...parallax }, cloudPixelDiff: diff };
   check("6 short change", done.sky === "night" && drawn.night === 1 && !done.changing, done);
   check("6 the sun and moon never travel", !moved, { before, during });
   check("6 no twinkle", twinkle === "none", twinkle);
+  check("6 no parallax: the clouds' scroll offset stays 0 with the world screens along", world.axis === "x" && world.at > world.screen && parallax.sent > 0 && parallax.maxAbs === 0, { world, parallax });
   check("6 clouds still", diff === 0, diff);
   await ctx.close();
 }
@@ -265,6 +443,7 @@ if (!quick) {
         return orig.apply(this, a);
       };
     }, period);
+    // A deep link: the world lands on the packages scene, past the tunnel (where the sky would be paused).
     await page.goto(`${URL}#packages`, { waitUntil: "load" });
     await page.waitForTimeout(26000);
     const n = await page.evaluate(() => window.__shooting);
@@ -279,20 +458,43 @@ if (!quick) {
   check("7 never with reduced motion", reduced === 0, reduced);
 }
 
-// 8. Under the intro film the sky is paused (no cloud drawing, no twinkle).
+// 8. Under the tunnel scene the sky is paused (no cloud drawing, no twinkle): at the start of the world, and while
+//    its stage still covers the screen; running once the world is past it; paused again back at the start.
 {
-  const { ctx, page } = await open({}, { url: URL, prefs: { period: "night" } });
-  const paused = await page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"));
-  await page.evaluate(() => document.querySelector("#main")?.scrollIntoView({ block: "start" }));
-  await page.waitForTimeout(800);
-  const pausedBelow = await page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"));
-  results["8 paused under the intro"] = { atTop: paused, onThePage: pausedBelow };
-  check("8 paused at the top, running below", paused && !pausedBelow, { paused, pausedBelow });
+  const { ctx, page } = await open({}, { url: URL, prefs: { period: "night" }, gl: true });
+  const state = async () => {
+    await page.waitForTimeout(500);
+    await resetClouds(page);
+    await page.waitForTimeout(1000);
+    return {
+      ...(await place(page)),
+      paused: await page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused")),
+      drawsPerSecond: (await clouds(page)).draws,
+    };
+  };
+  await page.waitForFunction(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"), null, { timeout: 3000 }).catch(() => {});
+  const atStart = await state();
+  await introSettled(page);
+  const end = await tunnelEnd(page);
+  await moveWorld(page, end - 40);
+  const stageCovering = await state();
+  await moveWorld(page, end + 100);
+  const tunnelLeaving = await state(); // reported: the next scene's edge is in, the sky shows beside the stage
+  await toScene(page, "#bus");
+  const past = await state();
+  await moveWorld(page, 0);
+  const backAtStart = await state();
+  results["8 paused under the tunnel"] = { atStart, stageCovering, tunnelLeaving, past, backAtStart };
+  check("8 paused at the start of the world, nothing drawn", atStart.axis === "x" && atStart.at === 0 && atStart.paused && atStart.drawsPerSecond === 0, atStart);
+  check("8 still paused while the tunnel's stage covers the screen", stageCovering.paused && stageCovering.drawsPerSecond === 0, stageCovering);
+  check("8 running past the tunnel (the clouds drawn)", !past.paused && past.drawsPerSecond > 0, past);
+  check("8 paused again back at the start", backAtStart.at === 0 && backAtStart.paused && backAtStart.drawsPerSecond === 0, backAtStart);
   await ctx.close();
 }
 
 // 9. Phone: the switch is in the menu drawer. The menu button names the drawer (aria-controls) and says
-//    whether it's open (aria-expanded) through every way out: Esc, the backdrop, a link.
+//    whether it's open (aria-expanded) through every way out: Esc, the backdrop, a link (which glides the world
+//    to its scene). The drawer's "Book your ride" opens the booking panel over the world.
 {
   const { ctx, page } = await open(phone, { prefs: { period: "day" } });
   const menuButton = page.locator('[data-site-header] button[aria-haspopup="dialog"]');
@@ -302,6 +504,39 @@ if (!quick) {
       const target = document.getElementById(b.getAttribute("aria-controls") ?? "");
       return { expanded: b.getAttribute("aria-expanded"), controlsDialog: target?.tagName === "DIALOG", open: Boolean(target?.open) };
     });
+  /** Where the world is, which scene has focus, the booking panel, and whether the page itself overflows. */
+  const world = () =>
+    page.evaluate(() => {
+      const h = document.documentElement;
+      const panel = document.querySelector('[data-field="date"]')?.closest("dialog");
+      const f = document.activeElement;
+      return {
+        axis: h.dataset.axis,
+        at: Math.round(document.querySelector("[data-world]").scrollLeft),
+        hash: location.hash,
+        packagesLeft: Math.round(document.getElementById("packages").getBoundingClientRect().left),
+        focusScene: f?.closest("[data-scene]")?.id ?? null,
+        focusIsMenuButton: Boolean(f?.matches('[data-site-header] button[aria-haspopup="dialog"]')),
+        pageOverflow: [h.scrollWidth - innerWidth, h.scrollHeight - innerHeight, scrollX, scrollY],
+        booking: panel && {
+          open: panel.open,
+          name: document.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent ?? null,
+          focusInside: panel.contains(f),
+          nightChecked: panel.querySelector('[role=radio][aria-label="Night ride"]')?.getAttribute("aria-checked") === "true",
+          smsSaysNight: decodeURIComponent(panel.querySelector('a[href^="sms:"]')?.getAttribute("href") ?? "").includes("a night ride"),
+        },
+      };
+    });
+  /** Until the world's glide has landed (two readings 250 ms apart agree; at most 5 s). */
+  const settle = async () => {
+    let last = (await place(page)).at;
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(250);
+      const now = (await place(page)).at;
+      if (now === last) return;
+      last = now;
+    }
+  };
   const headerSwitchVisible = await page.locator("[data-site-header] > div [role=radiogroup]").isVisible();
   const closed = await menu();
   await menuButton.click();
@@ -310,7 +545,7 @@ if (!quick) {
   await page.locator('dialog[open] [role=radio][aria-label="Night ride"]').click();
   await page.waitForTimeout(6000);
   const s = await sky(page);
-  const overflowX = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+  const atStart = await world();
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
   const afterEsc = await menu();
@@ -323,13 +558,28 @@ if (!quick) {
   await menuButton.click();
   await page.waitForTimeout(400);
   await page.locator('dialog[open] nav[aria-label="Mobile"] a', { hasText: "Packages" }).click();
+  await page.waitForTimeout(400);
+  await settle();
+  const afterLink = { ...(await menu()), ...(await world()) };
+  // The drawer's "Book your ride": the booking panel over the world (the drawer closes first).
+  await menuButton.click();
+  await page.waitForTimeout(400);
+  await page.locator("dialog[open] a", { hasText: "Book your ride" }).click();
   await page.waitForTimeout(600);
-  const afterLink = { ...(await menu()), hash: await page.evaluate(() => location.hash) };
-  results["9 phone"] = { headerSwitchVisible, sky: s.sky, period: s.stored.period, overflowX, menu: { closed, opened, afterEsc, afterBackdrop, afterLink } };
-  check("9 drawer switch works", !headerSwitchVisible && s.stored.period === "night" && s.sky === "night" && overflowX === 0, results["9 phone"]);
+  const booking = { ...(await menu()), ...(await world()) };
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(500);
+  const bookingClosed = await world();
+  results["9 phone"] = { headerSwitchVisible, sky: s.sky, period: s.stored.period, atStart, menu: { closed, opened, afterEsc, afterBackdrop, afterLink }, booking, bookingClosed };
+  check("9 drawer switch works", !headerSwitchVisible && s.stored.period === "night" && s.sky === "night", { headerSwitchVisible, sky: s.sky, period: s.stored.period });
+  check("9 the page itself never overflows (the world scrolls inside the screen)", atStart.axis === "x" && atStart.pageOverflow.every((v) => v === 0), atStart);
   check("9 the menu button names the drawer (aria-controls)", closed.controlsDialog, closed);
   check("9 the menu button says collapsed, then expanded", closed.expanded === "false" && !closed.open && opened.expanded === "true" && opened.open, { closed, opened });
   check("9 the menu button collapses with the drawer (Esc, backdrop, link)", [afterEsc, afterBackdrop, afterLink].every((m) => m.expanded === "false" && !m.open) && afterLink.hash === "#packages", { afterEsc, afterBackdrop, afterLink });
+  check("9 a drawer link glides the world to its scene's start (and focus there)", Math.abs(afterLink.packagesLeft) <= 2 && afterLink.focusScene === "packages" && afterLink.pageOverflow.every((v) => v === 0), afterLink);
+  check("9 the drawer's Book opens the booking panel over the world", booking.expanded === "false" && !booking.open && booking.booking?.open && booking.booking.name === "Book your ride" && booking.booking.focusInside && booking.at === afterLink.at, booking);
+  check("9 the booking panel carries the sky chosen in the drawer", booking.booking?.nightChecked && booking.booking.smsSaysNight, booking.booking);
+  check("9 Esc closes the booking panel, focus back on the menu button, the world where it was", !bookingClosed.booking?.open && bookingClosed.focusIsMenuButton && bookingClosed.at === afterLink.at, bookingClosed);
   await ctx.close();
 }
 
@@ -343,17 +593,75 @@ if (!quick) {
     const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
     return (x + 0.05) / (y + 0.05);
   };
-  /** The worst contrast of `sel` against the pixels really behind it, with the element at `where` on screen. */
+  /**
+   * Put `sel` in place. Sideways (the world moves; the panels sit between the header and the road, so a
+   * target's height on screen is the layout's): "arrived" = its scene at its start, as a nav link or the scene
+   * keys bring it, the target brought fully on screen if it's further along (as keyboard focus does);
+   * "middle" = as near the middle of the screen as the target can be with its panel at rest (a panel still
+   * gliding in is translucent). Down the column (the page moves): "middle" = centred, "top" = just under the
+   * header. The header (fixed): "scene" = the world at the bus scene, "tunnel" = at the tunnel's resting point.
+   */
+  const put = (loc, where) =>
+    loc.evaluate(async (el, where) => {
+      const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const w = document.querySelector("[data-world]");
+      const header = document.querySelector("[data-site-header]")?.getBoundingClientRect().height ?? 64;
+      if (document.documentElement.dataset.axis !== "x") {
+        const r = el.getBoundingClientRect();
+        // Just under the header, but not inside html's scroll-padding (the screenshot would scroll it out of there).
+        const padding = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+        const y = where === "top" ? Math.max(header + 8, padding + 2) : (innerHeight - r.height) / 2;
+        window.scrollBy({ top: r.top - y, behavior: "instant" });
+        await frame();
+        return { ok: true };
+      }
+      const W = w.clientWidth;
+      const along = (x) => x - w.getBoundingClientRect().left + w.scrollLeft;
+      if (where === "scene" || where === "tunnel") {
+        const left = where === "tunnel" ? document.getElementById("top").offsetWidth - W : along(document.getElementById("bus").getBoundingClientRect().left);
+        w.scrollTo({ left, behavior: "instant" });
+        await frame();
+        return { ok: true, at: Math.round(w.scrollLeft) };
+      }
+      const scene = el.closest("[data-scene]");
+      const panel = el.closest("[data-panel]");
+      w.scrollTo({ left: along(scene.getBoundingClientRect().left), behavior: "instant" });
+      await frame();
+      const margin = Math.min(32, W * 0.05);
+      let r = el.getBoundingClientRect();
+      if (r.left < margin || r.right > W - margin) {
+        const shift = r.right > W - margin && r.width < W - 2 * margin ? r.right - (W - margin) : r.left - margin;
+        w.scrollBy({ left: shift, behavior: "instant" });
+        await frame();
+        r = el.getBoundingClientRect();
+      }
+      // Arrived: its glide-in (a scroll-driven animation) is over: opaque and untransformed.
+      const atRest = () => {
+        const cs = getComputedStyle(panel);
+        return +cs.opacity === 1 && (cs.transform === "none" || new DOMMatrix(cs.transform).isIdentity);
+      };
+      if (where === "middle") {
+        // Towards the middle (never past the screen's edges); if that leaves its panel still gliding in from the
+        // right, back along towards where it arrived until the panel is at rest.
+        const shift = Math.max(r.right - W, Math.min(r.left, r.left + r.width / 2 - W / 2));
+        w.scrollBy({ left: shift, behavior: "instant" });
+        await frame();
+        for (let i = 0; i < 200 && !atRest(); i++) {
+          w.scrollBy({ left: 8, behavior: "instant" });
+          await frame();
+        }
+        r = el.getBoundingClientRect();
+      }
+      return { ok: atRest() && r.left >= 0 && r.right <= W && r.top >= header && r.bottom <= innerHeight, at: Math.round(w.scrollLeft), x: Math.round(r.left + r.width / 2), atRest: atRest() };
+    }, where);
+  /** The worst contrast of `sel` against the pixels really behind it, with the element put `where`. */
   async function measure(page, sel, where) {
     const loc = page.locator(sel).first();
     if (!(await loc.count())) return null;
-    await loc.evaluate((el, where) => {
-      const header = document.querySelector("[data-site-header]")?.getBoundingClientRect().height ?? 64;
-      const r = el.getBoundingClientRect();
-      const y = where === "top" ? header + 8 : (innerHeight - r.height) / 2;
-      window.scrollBy({ top: r.top - y, behavior: "instant" });
-    }, where);
-    await page.waitForTimeout(250);
+    const placed = await put(loc, where);
+    // (Over the tunnel: the film's scrub catches up with the jump first.)
+    await page.waitForTimeout(where === "tunnel" ? 1500 : 250);
+    const before = await place(page);
     const info = await loc.evaluate((el) => {
       const cs = getComputedStyle(el);
       // Computed colours can be oklch(): let a canvas convert them to sRGB.
@@ -371,6 +679,8 @@ if (!quick) {
       document.querySelector("[data-contrast-probe]")?.removeAttribute("data-contrast-probe");
       document.querySelectorAll("style").forEach((s) => s.textContent.includes("data-contrast-probe") && s.remove());
     });
+    // The screenshot mustn't have moved the world (or the page) to get the element: then it measured elsewhere.
+    const held = (await place(page)).at === before.at;
     const { data, info: meta } = await sharp(shot).raw().toBuffer({ resolveWithObject: true });
     const px = [];
     for (let i = 0; i < data.length; i += meta.channels * 7) px.push([data[i], data[i + 1], data[i + 2]]);
@@ -378,7 +688,7 @@ if (!quick) {
     const lo = px[Math.floor(px.length * 0.1)] ?? px[0];
     const hi = px[Math.floor(px.length * 0.9)] ?? px[0];
     const large = info.size >= 24 || (info.size >= 18.66 && info.weight >= 700);
-    return { ratio: +Math.min(ratio(info.color, lo), ratio(info.color, hi)).toFixed(2), needs: large ? 3 : 4.5 };
+    return { ratio: +Math.min(ratio(info.color, lo), ratio(info.color, hi)).toFixed(2), needs: large ? 3 : 4.5, placed: placed.ok && held, at: placed.at, x: placed.x };
   }
   const targets = [
     ["section heading", "#packages h2"],
@@ -387,22 +697,27 @@ if (!quick) {
     ["card text", "#packages article p"],
     ["faq answer", "#faq details[open] p"],
     ["day/night status", "#day-night [data-panel] p.text-muted-foreground"],
-    ["quote lede", "#quote h2 + p"],
+    ["contact lede", "#contact h2 + p"],
     ["footer link", "footer nav a"],
-    ["header link", "[data-site-header] nav a"],
   ];
+  // A muted link (the one marked "you are here" is brighter).
+  const headerLink = "[data-site-header] nav a:not([aria-current])";
   const out = {};
   for (const period of ["day", "night"]) {
     const { ctx, page } = await open({}, { prefs: { period } });
+    await introSettled(page);
     const rows = [];
     for (const [label, sel] of targets) {
-      for (const where of ["middle", "top"]) {
-        if (label === "header link" && where === "top") continue;
+      for (const where of ["arrived", "middle"]) {
         const r = await measure(page, sel, where);
         rows.push({ label: `${label} (${where})`, ...(r ?? { missing: sel }) });
       }
     }
-    // The 404 page: its text on glass too.
+    for (const where of ["scene", "tunnel"]) {
+      const r = await measure(page, headerLink, where);
+      rows.push({ label: `header link (over the ${where})`, ...(r ?? { missing: headerLink }) });
+    }
+    // The 404 page: its text on glass too (a classic page: no world).
     await page.goto(`${URL}nope`, { waitUntil: "load" });
     await page.waitForTimeout(800);
     for (const [label, sel] of [["404 heading", "main h1"], ["404 text", "main p.text-muted-foreground"], ["404 header link", "[data-site-header] nav a"]]) {
@@ -411,27 +726,44 @@ if (!quick) {
     }
     out[period] = rows;
     await ctx.close();
+
+    // The column (a phone on its side): the same scenes down the page, mid-screen and just under the header.
+    // (Its header has no nav links below xl: they're in the menu drawer.)
+    const col = await open(landscape, { prefs: { period } });
+    const colRows = [];
+    const axis = await place(col.page);
+    for (const [label, sel] of targets) {
+      for (const where of ["middle", "top"]) {
+        const r = await measure(col.page, sel, where);
+        colRows.push({ label: `${label} (${where})`, ...(r ?? { missing: sel }) });
+      }
+    }
+    out[`${period}, column 844x390`] = { axis: axis.axis, rows: colRows };
+    check(`10 ${period} column 844x390 is a column`, axis.axis === "y", axis);
+    await col.ctx.close();
   }
   results["10 contrast"] = out;
-  for (const [period, rows] of Object.entries(out)) for (const r of rows) check(`10 ${period} ${r.label}`, !r.missing && r.ratio >= r.needs, r);
+  for (const [period, v] of Object.entries(out)) for (const r of Array.isArray(v) ? v : v.rows) check(`10 ${period} ${r.label}`, !r.missing && r.placed && r.ratio >= r.needs, r);
 }
 
-// 11. Frame rate: scrolling the page, and during a change (bus panel in view, and FAQ). Desktop, and phone at 4x CPU.
+// 11. Frame rate: sweeping the world sideways, and during a change (the bus scene in view, and the FAQ).
+//     Desktop, and phone at 4x CPU.
 {
   const sweep = (page, ms) =>
     page.evaluate(
       (ms) =>
         new Promise((resolve) => {
-          const start = document.querySelector("#main").getBoundingClientRect().top + scrollY;
-          const end = document.documentElement.scrollHeight - innerHeight;
+          const w = document.querySelector("[data-world]");
+          const start = document.querySelector("#main").getBoundingClientRect().left - w.getBoundingClientRect().left + w.scrollLeft;
+          const end = w.scrollWidth - w.clientWidth;
           const frames = [];
           const t0 = performance.now();
           const step = (t) => {
             const k = Math.min(1, (t - t0) / ms);
-            window.scrollTo({ top: start + (end - start) * k, behavior: "instant" });
+            w.scrollTo({ left: start + (end - start) * k, behavior: "instant" });
             frames.push(t);
             if (k < 1) requestAnimationFrame(step);
-            else resolve(frames);
+            else resolve({ frames, travelled: Math.round(w.scrollLeft - start), sideways: document.documentElement.dataset.axis === "x" });
           };
           requestAnimationFrame(step);
         }),
@@ -446,17 +778,21 @@ if (!quick) {
   };
   const name = (p) => (p === "day" ? "Day ride" : "Night ride");
   const out = {};
+  const swept = {};
   for (const [dev, opts, rate] of [["desktop", desktop, 1], ["phone 4x", phone, 4]]) {
     for (const period of ["day", "night"]) {
       const { ctx, page } = await open(opts, { prefs: { period } });
+      await introSettled(page);
       const cdp = await ctx.newCDPSession(page);
       await cdp.send("Emulation.setCPUThrottlingRate", { rate });
-      out[`${dev} ${period} scroll`] = stats(await sweep(page, 8000));
+      const sw = await sweep(page, 8000);
+      out[`${dev} ${period} sweep`] = stats(sw.frames);
+      swept[`${dev} ${period}`] = { sideways: sw.sideways, travelled: sw.travelled };
       const target = period === "day" ? "night" : "day";
-      // The phone keeps its switch in the drawer: use the picker's radio there (clicked without scrolling to it).
+      // The phone keeps its switch in the drawer: use the picker's radio there (clicked without moving the world to it).
       const radio = (p) => (dev === "desktop" ? headerRadio(page, name(p)) : pickerRadio(page, name(p)));
       for (const at of ["#bus", "#faq"]) {
-        await page.evaluate((at) => document.querySelector(at)?.scrollIntoView({ block: "start" }), at);
+        await toScene(page, at);
         await page.waitForTimeout(400);
         await radio(target).evaluate((el) => el.click());
         out[`${dev} ${period}→${target} change at ${at}`] = stats(await idle(page, 5400));
@@ -466,7 +802,8 @@ if (!quick) {
       await ctx.close();
     }
   }
-  results["11 frame rate"] = out;
+  results["11 frame rate"] = { ...out, swept };
+  for (const [k, v] of Object.entries(swept)) check(`11 ${k} the sweep went along the world`, v.sideways && v.travelled > 2000, v);
   for (const [k, v] of Object.entries(out)) check(`11 ${k}`, v.slowPct <= (k.startsWith("phone") ? 8 : 3), v);
 }
 
@@ -481,65 +818,162 @@ if (!quick) {
   await ctx.close();
 }
 
-// 13. "Meet the bus" on a phone: the feature list sits below the photo, so a tapped hotspot's text can
-//     open off screen. Tapped with the photo low on the screen, the farthest feature comes on screen;
-//     with the whole list in view the page stays put. Screen readers hear what a tap opened (not what
-//     a list pick opened: that button holds its text). The taps, inside a panel, never reach the sky.
+// 13. "Meet the bus": on a phone the feature list sits beside the photo, a screen on along the world, so a tapped
+//     hotspot's text opens off screen: the world glides along to it. Screen readers hear what a tap opened (not
+//     what a list pick opened: that button holds its text). The taps, inside a panel, never reach the sky. On a
+//     desktop the photo and the list fit on screen together: a tap there leaves the world where it is.
 {
-  const { ctx, page } = await open(phone, { prefs: { period: "day" } });
-  // Below the intro its engine still starts once the film is in: let it, so nothing re-measures mid-check.
-  await page.waitForFunction(() => { const h = document.documentElement; return !h.hasAttribute("data-intro-pending") && (document.querySelector("[data-film]")?.hasAttribute("data-ready") || h.hasAttribute("data-intro-still") || h.hasAttribute("data-intro-failed")); }, null, { timeout: 60000 }).catch(() => {});
-  await page.getByRole("tab", { name: "Interior" }).click();
-  await page.waitForTimeout(800);
-  const hotspots = page.locator("#bus [role=tabpanel] button[aria-pressed]");
-  /** Put the photo at the screen's bottom edge or just under the header, tap `spot`, report what's on screen. */
-  const tapHotspot = async (spot, where) => {
-    await page.locator("#bus [role=tabpanel]").evaluate((el, where) => {
-      const r = el.getBoundingClientRect();
-      const header = document.querySelector("[data-site-header]").getBoundingClientRect().bottom;
-      window.scrollBy({ top: where === "bottom" ? r.bottom - (innerHeight - 8) : r.top - (header + 8), behavior: "instant" });
-    }, where);
-    await page.waitForTimeout(300);
-    const before = await page.evaluate(() => scrollY);
-    await spot.tap();
-    await page.waitForTimeout(1200); // the text opens (0.3 s), then the page moves if it must
+  /** Tap (or click) `spot` on the photo; report the opened feature, whether it's on screen, and how far the world moved. */
+  const pickOnPhoto = async (page, spot, how) => {
+    const before = (await place(page)).at;
+    await (how === "tap" ? spot.tap() : spot.click());
+    await page.waitForTimeout(1400); // the text opens (0.3 s), then the world glides if it must
     return spot.evaluate((el, before) => {
+      const w = document.querySelector("[data-world]");
       const item = document.querySelector('#bus ul button[aria-expanded="true"]');
       const r = item.getBoundingClientRect();
       const s = el.getBoundingClientRect();
       return {
         label: el.textContent.trim(),
         body: item.lastElementChild?.textContent?.trim() ?? "",
+        left: Math.round(r.left),
+        right: Math.round(r.right),
         top: Math.round(r.top),
         bottom: Math.round(r.bottom),
         header: Math.round(document.querySelector("[data-site-header]").getBoundingClientRect().bottom),
-        screen: innerHeight,
-        moved: Math.round(scrollY - before),
-        hotspotOnScreen: s.top >= 0 && s.bottom <= innerHeight,
+        screen: [innerWidth, innerHeight],
+        moved: Math.round(w.scrollLeft - before),
+        hotspotOnScreen: s.left >= 0 && s.right <= innerWidth && s.top >= 0 && s.bottom <= innerHeight,
         told: document.querySelector("#bus [role=status]")?.textContent ?? null,
       };
     }, before);
   };
-  const far = await tapHotspot(hotspots.last(), "bottom");
-  const near = await tapHotspot(hotspots.first(), "top");
+  const onScreen = (x) => x.left >= 0 && x.right <= x.screen[0] && x.top >= x.header && x.bottom <= x.screen[1];
+
+  const { ctx, page } = await open(phone, { prefs: { period: "day" } });
+  // Past the tunnel its engine still starts once the film is in: let it, so nothing re-measures mid-check.
+  await introSettled(page);
+  await toScene(page, "#bus");
+  await page.getByRole("tab", { name: "Interior" }).tap();
+  await page.waitForTimeout(800);
+  const hotspots = page.locator("#bus [role=tabpanel] button[aria-pressed]");
+  const layout = await page.evaluate(() => ({
+    photoRight: Math.round(document.querySelector("#bus [role=tabpanel]").getBoundingClientRect().right),
+    listLeft: Math.round(document.querySelector("#bus ul").getBoundingClientRect().left),
+    screen: innerWidth,
+  }));
+  const far = await pickOnPhoto(page, hotspots.last(), "tap");
   await page.locator("#bus ul button").nth(2).tap();
   await page.waitForTimeout(600);
   const afterList = await page.evaluate(() => document.querySelector("#bus [role=status]")?.textContent ?? null);
   const s = await sky(page);
-  results["13 meet the bus (phone)"] = { far, near, afterList, sky: s.sky, period: s.stored.period };
-  const onScreen = (x) => x.top >= x.header && x.bottom <= x.screen;
-  check("13 a feature tapped low on the photo comes on screen", onScreen(far) && far.moved > 0, far);
-  check("13 already on screen: the page stays put", onScreen(near) && near.moved === 0, near);
+  await ctx.close();
+
+  // Desktop: the world moved so the photo and the whole list are on screen (the list with the margin a reveal keeps
+  // to the panel's edge: its items' scroll-margin); a hotspot whose text opens in view.
+  const d = await open({}, { prefs: { period: "day" } });
+  await introSettled(d.page);
+  await toScene(d.page, "#bus");
+  const shifted = await d.page.evaluate(() => {
+    const w = document.querySelector("[data-world]");
+    const list = document.querySelector("#bus ul").getBoundingClientRect();
+    const margin = parseFloat(getComputedStyle(document.querySelector("#bus ul li")).scrollMarginRight) || 0;
+    w.scrollBy({ left: Math.max(0, list.right - (innerWidth - margin - 4)), behavior: "instant" });
+    const photo = document.querySelector("#bus [role=tabpanel]").getBoundingClientRect();
+    const l = document.querySelector("#bus ul").getBoundingClientRect();
+    return { photo: [Math.round(photo.left), Math.round(photo.right)], list: [Math.round(l.left), Math.round(l.right)], margin, screen: innerWidth };
+  });
+  await d.page.waitForTimeout(400);
+  const near = await pickOnPhoto(d.page, d.page.locator("#bus [role=tabpanel] button[aria-pressed]").nth(1), "click");
+  const ds = await sky(d.page);
+  await d.ctx.close();
+
+  results["13 meet the bus"] = { phone: { layout, far, afterList, sky: s.sky, period: s.stored.period }, desktop: { shifted, near, sky: ds.sky, period: ds.stored.period } };
+  check("13 phone: the list sits a screen on from the photo", layout.listLeft >= layout.screen, layout);
+  check("13 phone: a feature tapped on the photo comes on screen, the world moving sideways to it", onScreen(far) && far.moved > 0, far);
+  check("13 desktop: already on screen, the world stays put", shifted.photo[0] >= 0 && shifted.list[1] <= shifted.screen && onScreen(near) && near.moved === 0, { shifted, near });
   check("13 screen readers hear what a tap opened", [far, near].every((x) => x.body && x.told?.includes(x.label) && x.told.includes(x.body)), { far: far.told, near: near.told });
   check("13 a pick in the list isn't announced again", afterList === "", afterList);
-  check("13 the taps never reach the sky", s.sky === "day" && s.stored.period === "day", s);
+  check("13 the taps never reach the sky", s.sky === "day" && s.stored.period === "day" && ds.sky === "day" && ds.stored.period === "day", { phone: s, desktop: ds });
+}
+
+// 14. The clouds' parallax follows the world: the shader's uScroll is [screens along the world, screens down the
+//     page], so moving sideways (a jump, a mouse wheel turned sideways, an arrow key) drifts the clouds sideways.
+{
+  const { ctx, page } = await open({}, { prefs: { period: "day" }, gl: true });
+  await introSettled(page);
+  const read = async () => {
+    await page.waitForTimeout(700); // the wheel's easing has landed, and the sky has drawn
+    const p = await place(page);
+    const c = await clouds(page);
+    return { at: p.at, screens: +(p.at / p.screen).toFixed(4), uScroll: c.scroll?.map((v) => +v.toFixed(4)) ?? null };
+  };
+  await toScene(page, "#bus");
+  const atBus = await read();
+  await moveWorld(page, atBus.at + page.viewportSize().width);
+  const jumped = await read();
+  // A mouse wheel over the road (nothing there scrolls down): the world turns it sideways.
+  await page.mouse.move(page.viewportSize().width / 2, page.viewportSize().height - 20);
+  await page.mouse.wheel(0, 400);
+  const wheeled = await read();
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  await page.keyboard.press("ArrowLeft");
+  const keyed = await read();
+  const steps = { atBus, jumped, wheeled, keyed };
+  results["14 cloud parallax follows the world"] = steps;
+  const follows = (s) => s.uScroll && Math.abs(s.uScroll[0] - s.screens) < 0.01 && s.uScroll[1] === 0;
+  check("14 the clouds' offset is the world's place (screens along x, none down)", Object.values(steps).every(follows), steps);
+  check("14 it moves with the world: a jump, the wheel and a key", jumped.uScroll?.[0] > atBus.uScroll?.[0] + 0.9 && wheeled.at > jumped.at && wheeled.uScroll?.[0] > jumped.uScroll?.[0] && keyed.at < wheeled.at && keyed.uScroll?.[0] < wheeled.uScroll?.[0], steps);
   await ctx.close();
+}
+
+// 15. The column: a phone on its side is too short for side-by-side scenes, so the world runs down the page. The
+//     day/night switch, the picker and the parallax work there too, and the sky still rests under the tunnel.
+{
+  const { ctx, page } = await open(landscape, { prefs: { period: "day" }, gl: true });
+  const at = await place(page);
+  const world = await page.evaluate(() => ({ axis: document.documentElement.dataset.axis ?? null, worldScrolls: document.querySelector("[data-world]").scrollWidth > document.querySelector("[data-world]").clientWidth + 1, scrollY: Math.round(scrollY) }));
+  await headerRadio(page, "Night ride").click();
+  const s = await sampleSky(page, 6200);
+  const end = await sky(page);
+  const flip = checkToNight(15, s, end);
+  // The picker by keyboard, back to day: the arrow moves the choice, not the page.
+  await page.locator("#day-night [role=radiogroup]").evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" }));
+  await page.waitForTimeout(300);
+  await pickerRadio(page, "Night ride").focus();
+  const y0 = (await place(page)).at;
+  await page.keyboard.press("ArrowLeft");
+  const b = await sampleSky(page, 6200);
+  const focused = await focusedRadio(page);
+  const endDay = await sky(page);
+  const y1 = (await place(page)).at;
+  checkBackToDay(15, b, endDay, focused);
+  // The parallax down the page: [0, screens down].
+  await moveWorld(page, y1 + 2 * page.viewportSize().height);
+  await page.waitForTimeout(500);
+  const down = { ...(await place(page)), uScroll: (await clouds(page)).scroll };
+  await ctx.close();
+  // At the top (no deep link): under the tunnel, paused; down at the scenes, running.
+  const top = await open(landscape, { url: URL, prefs: { period: "night" } });
+  await top.page.waitForFunction(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"), null, { timeout: 3000 }).catch(() => {});
+  const pausedAtTop = await top.page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"));
+  await introSettled(top.page);
+  await toScene(top.page, "#bus");
+  await top.page.waitForTimeout(600);
+  const pausedBelow = await top.page.evaluate(() => document.querySelector("[data-sky-layer]").hasAttribute("data-paused"));
+  await top.ctx.close();
+  results["15 the column (844x390)"] = { at, world, flip, end, focused, endDay, pickerScroll: { before: y0, after: y1 }, down, pausedAtTop, pausedBelow };
+  check("15 a column: no sideways world, the page scrolls down", world.axis === "y" && !world.worldScrolls && world.scrollY > 0, world);
+  check("15 the arrow key didn't move the page", y0 === y1, { y0, y1 });
+  check("15 the parallax follows the page down", down.uScroll && down.uScroll[0] === 0 && Math.abs(down.uScroll[1] - down.at / down.screen) < 0.01, down);
+  check("15 paused under the tunnel at the top, running down at the scenes", pausedAtTop && !pausedBelow, { pausedAtTop, pausedBelow });
 }
 
 await browser.close();
 console.log(JSON.stringify(results, null, 1));
 if (uncaught.length) failures.push(...[...new Set(uncaught)].map((m) => `uncaught: ${m}`));
-if (failures.length) {
-  console.error(`\n${failures.length} check(s) failed:\n- ${failures.join("\n- ")}`);
+const total = failures.length;
+if (total) {
+  console.error(`\n${total} check(s) failed:\n- ${failures.join("\n- ")}`);
   process.exitCode = 1;
 } else console.error("\nAll sky checks passed.");

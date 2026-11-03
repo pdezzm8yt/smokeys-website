@@ -106,7 +106,7 @@ function baseChain(cut, src) {
 
 /** Check the beats are in order and each has a frame at or after it (the last frame starts one frame before the end). */
 function checkBeats(cut, duration, fps) {
-  const order = ["tunnel", "swallowed", "cover", "headlights", "rest"];
+  const order = ["tunnel", "dark", "swallowed", "cover", "headlights", "lights", "rest"];
   const lastFrame = duration - 1 / fps;
   let prev = 0;
   for (const name of order) {
