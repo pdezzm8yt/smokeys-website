@@ -24,8 +24,8 @@
  *      and while the tunnel's stage still covers the screen, running past the tunnel, paused again back
  *   9  phone: the switch lives in the menu drawer; its button names the drawer (aria-controls) and says
  *      whether it's open (aria-expanded) through Esc, the backdrop and a link; the page itself never
- *      overflows (the world scrolls inside the screen); a drawer link glides the world to its scene's
- *      start (hash, focus); the drawer's "Book your ride" opens the booking panel over the world
+ *      overflows (the world scrolls inside the screen); a drawer link travels the world to its scene's
+ *      start (focus there; no URL change or history entry); the drawer's "Book your ride" opens the booking panel over the world
  *      (closing the drawer, focus inside, the chosen sky in it) and Esc gives focus back to the menu button
  *   10 readability: measured text contrast on the panels, day and night: sideways (desktop) with the
  *      world moved to put each target in place (its scene arrived, and as near mid-screen as its panel
@@ -575,7 +575,7 @@ if (!quick) {
   check("9 the page itself never overflows (the world scrolls inside the screen)", atStart.axis === "x" && atStart.pageOverflow.every((v) => v === 0), atStart);
   check("9 the menu button names the drawer (aria-controls)", closed.controlsDialog, closed);
   check("9 the menu button says collapsed, then expanded", closed.expanded === "false" && !closed.open && opened.expanded === "true" && opened.open, { closed, opened });
-  check("9 the menu button collapses with the drawer (Esc, backdrop, link)", [afterEsc, afterBackdrop, afterLink].every((m) => m.expanded === "false" && !m.open) && afterLink.hash === "#packages", { afterEsc, afterBackdrop, afterLink });
+  check("9 the menu button collapses with the drawer (Esc, backdrop, link)", [afterEsc, afterBackdrop, afterLink].every((m) => m.expanded === "false" && !m.open) && afterLink.hash === "" && Math.abs(afterLink.packagesLeft) <= 1, { afterEsc, afterBackdrop, afterLink });
   check("9 a drawer link glides the world to its scene's start (and focus there)", Math.abs(afterLink.packagesLeft) <= 2 && afterLink.focusScene === "packages" && afterLink.pageOverflow.every((v) => v === 0), afterLink);
   check("9 the drawer's Book opens the booking panel over the world", booking.expanded === "false" && !booking.open && booking.booking?.open && booking.booking.name === "Book your ride" && booking.booking.focusInside && booking.at === afterLink.at, booking);
   check("9 the booking panel carries the sky chosen in the drawer", booking.booking?.nightChecked && booking.booking.smsSaysNight, booking.booking);

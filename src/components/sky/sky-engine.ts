@@ -1,3 +1,4 @@
+import { worldLapPosition } from "@/components/world/world-axis";
 import { SKY, SKY_KEYS, type Period } from "@/content/sky";
 import { css, skyColors } from "./sky-color";
 import { SkyClouds } from "./sky-clouds";
@@ -403,8 +404,10 @@ export class SkyEngine {
   private readonly onScroll = () => {
     // How far along, in screens: each cloud layer drifts by its own share of it (parallax). Sideways
     // through the world the clouds drift sideways, down the page they drift up.
-    const world = document.documentElement.dataset.axis === "x" ? document.querySelector<HTMLElement>("[data-world]") : null;
-    this.scroll = [(world?.scrollLeft ?? 0) / Math.max(1, window.innerWidth), window.scrollY / Math.max(1, window.innerHeight)];
+    // (Where the visitor is in the world's loop: it starts again from the tunnel, where the tunnel's stage covers
+    // the sky, so the clouds never jump on screen, and the shader's numbers never grow too big to be exact.)
+    const sideways = document.documentElement.dataset.axis === "x";
+    this.scroll = [(sideways ? worldLapPosition() : 0) / Math.max(1, window.innerWidth), window.scrollY / Math.max(1, window.innerHeight)];
     if (!this.reduced) {
       this.dirty = true;
       this.schedule();

@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { currentAxis, worldElement } from "./world-axis";
+import { currentAxis, worldElement, worldTravel } from "./world-axis";
 
 /**
  * The party bus that carries on through the world after it drives out of the
  * tunnel: a small silhouette on the road (globals.css: the world's road),
  * appearing as the tunnel scene moves off, its wheels turning with the
- * visitor's travel (backwards when they go back), its headlights brighter at
- * night (data-sky-follow: the sky sets --night on it as it changes).
+ * visitor's travel, its headlights brighter at night (data-sky-follow: the
+ * sky sets --night on it as it changes). At the end of the lap, as the
+ * world's loop brings the roadrunner's road back round, it drives on ahead
+ * into its light, smaller and smaller, and is gone (it shows up again once
+ * the bus has driven out of the tunnel); with reduced motion it just fades.
  *
  * Decoration only (aria-hidden): a generic black party bus, not a picture of
  * Smokey's own bus. Only in the sideways world.
@@ -21,21 +24,36 @@ export function GuideBus() {
     if (!bus) return;
     let frame = 0;
     let idle = 0;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => {
       frame = 0;
       const world = worldElement();
       if (!world || currentAxis() !== "x") return;
       // In once the tunnel's stage has mostly moved off the screen (it's pinned until the tunnel scene
       // ends): on the world's road, never over the film's own.
-      const tunnel = document.getElementById("top");
-      const right = tunnel ? tunnel.getBoundingClientRect().right : 0;
-      const shown = Math.min(1, Math.max(0, (window.innerWidth * 0.55 - right) / (window.innerWidth * 0.3)));
-      bus.style.opacity = String(shown);
-      bus.style.translate = `${(shown - 1) * 45}% 0`;
-      bus.style.visibility = shown > 0 ? "visible" : "hidden";
-      // The wheels roll with the distance travelled (diameter ≈ a tenth of the bus).
+      const vw = window.innerWidth;
+      // The tunnel scene: behind (the bus has driven out of it), or ahead (the world's loop coming back round
+      // to it, moved round to the end of the world).
+      const tunnel = document.getElementById("top")?.getBoundingClientRect();
+      const ahead = !!tunnel && tunnel.left > 0.5;
+      // In once the tunnel's stage has mostly moved off the screen (it's pinned until the tunnel scene ends): on
+      // the world's road, never over the film's own.
+      const shown = ahead || !tunnel ? 1 : Math.min(1, Math.max(0, (vw * 0.55 - tunnel.right) / (vw * 0.3)));
+      // At the end of the lap it drives on ahead, speeding up and getting smaller, into the light of the tunnel's
+      // opening frame arriving from the right, and is gone before it gets there: never over the frame.
+      const frameLeft = ahead && tunnel ? tunnel.left : Infinity;
+      const leave = Math.min(1, Math.max(0, (vw - frameLeft) / (vw * 0.85)));
+      const still = reduced.matches;
+      const on = still ? 0 : leave * leave * 0.4 * vw;
+      const gap = frameLeft - (bus.offsetLeft + bus.offsetWidth + on);
+      const opacity = shown * Math.min(1, Math.max(0, gap / (vw * 0.12)));
+      bus.style.opacity = String(opacity);
+      bus.style.translate = on ? `calc(${(shown - 1) * 45}% + ${on}px) 0` : `${(shown - 1) * 45}% 0`;
+      bus.style.scale = leave > 0 && !still ? String(1 - 0.25 * leave) : "";
+      bus.style.visibility = opacity > 0 ? "visible" : "hidden";
+      // The wheels roll with the distance travelled (diameter ≈ a tenth of the bus), on and on round the loop.
       const circumference = Math.PI * 0.1 * bus.offsetWidth;
-      bus.style.setProperty("--spin", `${((world.scrollLeft / Math.max(1, circumference)) * 360) % 360}deg`);
+      bus.style.setProperty("--spin", `${((worldTravel() / Math.max(1, circumference)) * 360) % 360}deg`);
     };
     const onScroll = () => {
       frame ||= requestAnimationFrame(update);

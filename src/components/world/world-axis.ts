@@ -52,8 +52,77 @@ export function subscribeAxis(listener: () => void) {
 /**
  * The scroll position that moves the world along, in either layout: the
  * world's scrollLeft when it runs sideways, the page's scrollY otherwise.
+ * (Sideways that's the place in the world as it's laid out right now: while
+ * the tunnel scene is moved round to its end, the lap position, the world's
+ * own order, is `worldLapPosition()`.)
  */
 export function worldScroll() {
   const w = worldElement();
   return w ? w.scrollLeft : window.scrollY;
+}
+
+/**
+ * Sideways, the world is a loop (./world-scroll.ts): the visitor's journey
+ * goes on and on, one lap after another, while the world itself is one lap
+ * long. Two numbers turn its scrollLeft into the journey:
+ * - the length of the laps already completed;
+ * - while the tunnel scene has been moved round to the END of the world (the
+ *   journey coming back round to it: CSS `order`), its width: everything
+ *   else then sits that much further left than in the world's own order.
+ * So `worldTravel()` keeps counting on forever, with no jump at the join.
+ */
+let laps = 0;
+let shifted = 0;
+
+/** The journey at the start of the current lap (the tunnel scene's start). */
+export const lapStart = () => laps;
+
+/** How far the world's scrollLeft is behind the lap position (the tunnel's width while it's moved round to the end, else 0). */
+export const lapShift = () => shifted;
+
+/** Count a lap in (+its length): the journey has come round to the start again. */
+export function addLap(length: number) {
+  laps += length;
+}
+
+/** The tunnel scene moved round to the end of the world (`width`: its width), or back to the start (0). */
+export function setShift(width: number) {
+  shifted = width;
+}
+
+/**
+ * Run `change`, which moves the world itself to keep the visitor's place
+ * across a layout change (a scene getting shorter), without that counting as
+ * travel: the journey stays where it was.
+ */
+export function keepTravel(change: () => void) {
+  const w = worldElement();
+  const before = w?.scrollLeft ?? 0;
+  change();
+  if (w) laps += before - w.scrollLeft;
+}
+
+/** A new world (the page was left or the world restarted): its journey starts from nothing. */
+export function resetLaps() {
+  laps = 0;
+  shifted = 0;
+}
+
+/**
+ * How far the visitor has travelled through the world (px), continuous
+ * across the loop's join: what the guide bus's wheels and anything else that
+ * moves WITH the travel should follow. In the column, the page's scrollY.
+ */
+export function worldTravel() {
+  const w = worldElement();
+  return w ? laps + shifted + w.scrollLeft : window.scrollY;
+}
+
+/**
+ * Where the visitor is in the current lap (px, in the world's own order:
+ * 0 = the start of the tunnel scene). In the column, the page's scrollY.
+ */
+export function worldLapPosition() {
+  const w = worldElement();
+  return w ? shifted + w.scrollLeft : window.scrollY;
 }

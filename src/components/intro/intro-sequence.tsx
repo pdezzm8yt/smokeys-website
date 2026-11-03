@@ -3,7 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { SampleTag } from "@/components/ui/sample-tag";
-import { currentAxis, worldElement, worldScroll } from "@/components/world/world-axis";
+import { currentAxis, keepTravel, worldElement, worldScroll } from "@/components/world/world-axis";
 import { useWorldAxis } from "@/components/world/world-scene";
 import { site } from "@/content/site";
 import { INTRO } from "./intro-config";
@@ -16,12 +16,14 @@ type IntroSequenceProps = {
   film: ReactNode;
   /** The headline and CTAs the film comes to rest under. */
   copy: ReactNode;
+  /** What leads the stage in when the world's loop comes back round to it (OpeningLead). */
+  lead: ReactNode;
 };
 
 type EngineModule = typeof import("./intro-engine");
 let engineModule: Promise<EngineModule> | null = null;
 
-/** GSAP, ScrollTrigger and the engine load on demand, in parallel with the footage: never on the hydration path. */
+/** GSAP and the engine load on demand, in parallel with the footage: never on the hydration path. */
 function loadEngine() {
   engineModule ??= import("./intro-engine").catch((error: unknown) => {
     engineModule = null;
@@ -62,6 +64,11 @@ function span(section: HTMLElement) {
  * through, they keep their progress; at the start nothing moves.
  */
 function keepPlace(section: HTMLElement, change: () => void) {
+  // Sideways, round the loop: the visitor stays put, and so does their journey (nothing that moves with it jumps).
+  keepTravel(() => keepPlaceNow(section, change));
+}
+
+function keepPlaceNow(section: HTMLElement, change: () => void) {
   const before = span(section);
   const range = before.to - before.from - before.view;
   const progress = range > 0 ? Math.min(1, Math.max(0, -before.from / range)) : 0;
@@ -99,7 +106,7 @@ function within<T>(promise: Promise<T>, ms: number, fallback?: { value: T }) {
  * Nothing here re-renders while scrolling. The layers are Server Components
  * passed in as slots.
  */
-export function IntroSequence({ film, copy }: IntroSequenceProps) {
+export function IntroSequence({ film, copy, lead }: IntroSequenceProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const engine = useRef<IntroEngine | null>(null);
@@ -117,6 +124,9 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
     const still = introStill();
     // (Save-Data and 2G have no CSS media query: the section shortens now.)
     if (still) keepPlace(section, () => (html().dataset.introStill = ""));
+    // Sideways the world is a loop: until the scene is ready to carry on (its engine running, or the finished
+    // hero instead), a journey coming back round to it waits at its opening frame, as it waits at the start.
+    html().dataset.loopHold = "";
     // At the start, the story waits for its film; a restored or linked position doesn't.
     const atStart = worldScroll() < 8 && (!window.location.hash || window.location.hash === "#top");
     if (atStart) {
@@ -140,7 +150,7 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
     };
     placeHero();
 
-    const media = new FilmMedia(stage, still);
+    const media = new FilmMedia(stage, still, section.querySelector<HTMLElement>(".intro-lead"));
     const progress = stage.querySelector<HTMLElement>("[data-intro-progress]");
     const onProgress = (f: number) => {
       // `scale`, not `transform`: Tailwind 4's scale-x-0 is the `scale` property, which multiplies with any transform.
@@ -157,6 +167,10 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
     // scroll events, sideways, and the page's, in the column.)
     const onScroll = () => {
       placeHero();
+      // The journey is coming back round to the scene (the world has moved it round to its end) and its stage is
+      // arriving, but its film still isn't in memory: the stills tell the story this time (rather than holding
+      // the visitor at the join for the rest of the download).
+      if (!engine.current && !media.ready && section.hasAttribute("data-round") && section.getBoundingClientRect().left < window.innerWidth) media.cancel();
       if (worldScroll() < 8 || !html().hasAttribute("data-scroll-lock")) return;
       setScrollLock(false);
       html().removeAttribute("data-intro-loading");
@@ -195,6 +209,7 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
           void create();
         };
         const landed = create();
+        delete html().dataset.loopHold;
         // After a nav jump past the scene the finished hero is showing: keep it up until the film shows the same frame.
         if (html().hasAttribute("data-intro-final")) await landed;
         if (cancelled) return;
@@ -214,6 +229,7 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
         html().removeAttribute("data-intro-loading");
         delete html().dataset.introPending;
         delete html().dataset.introStage;
+        delete html().dataset.loopHold;
         setScrollLock(false);
       });
 
@@ -227,7 +243,7 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
       engine.current = null;
       setScrollLock(false);
       html().removeAttribute("data-intro-loading");
-      for (const key of ["introPending", "introStill", "introFinal", "introStage", "introFailed"]) delete html().dataset[key];
+      for (const key of ["introPending", "introStill", "introFinal", "introStage", "introFailed", "loopHold"]) delete html().dataset[key];
     };
   }, []);
 
@@ -241,10 +257,15 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
       ref={sectionRef}
       id="top"
       data-scene
+      data-pinned
       aria-label={`${site.name}: the roadrunner and the tunnel`}
       className="intro-scroll relative"
       style={{ "--intro-screens": INTRO.scroll.screens, "--intro-still-screens": INTRO.scroll.stillScreens } as CSSProperties}
     >
+      {/* Sideways, when the world's loop comes back round to the scene: its edge in mirror image leads it in. */}
+      <div aria-hidden="true" className="intro-lead">
+        {lead}
+      </div>
       {/* Where the film comes to rest (bus, SMOKEY'S, CTAs): the header's home link and deep links land here. */}
       <span id="intro-end" aria-hidden="true" className="intro-end pointer-events-none absolute" />
       {/*
@@ -271,22 +292,22 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
 
         {/* "Ride along": which way to go (sideways, or down on a short landscape screen), and the film's
             download progress until it's in memory. */}
-        <div
-          data-intro-hint="scroll"
-          role="status"
-          className="intro-bottom-ui pointer-events-none absolute left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-1.5 text-xs font-semibold tracking-[0.25em] whitespace-nowrap text-white/85 uppercase [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]"
-        >
-          <span data-label className="flex items-center gap-1.5">
-            <span className="pointer-coarse:hidden">Scroll to ride along</span>
-            <span className="hidden pointer-coarse:inline">Swipe to ride along</span>
-            <ChevronRight aria-hidden="true" className="size-5 motion-safe:animate-pulse short:rotate-90" />
-          </span>
-          <span data-pending className="flex flex-col items-center gap-2 text-white/70">
-            Loading the ride&hellip;
-            <span className="h-0.5 w-28 overflow-hidden rounded-full bg-white/15">
-              <span data-intro-progress className="block h-full origin-left scale-x-0 bg-primary transition-transform duration-200" />
+        {/* Centred by its outer box; the timeline fades and moves the inner one (left to GSAP, the centring
+            itself could be lost: it folds a CSS translate into its own transform, rounded). */}
+        <div className="intro-bottom-ui pointer-events-none absolute left-1/2 z-30 -translate-x-1/2 text-xs font-semibold tracking-[0.25em] whitespace-nowrap text-white/85 uppercase [text-shadow:0_1px_10px_rgb(0_0_0/0.6)]">
+          <div data-intro-hint="scroll" role="status" className="flex flex-col items-center gap-1.5">
+            <span data-label className="flex items-center gap-1.5">
+              <span className="pointer-coarse:hidden">Scroll to ride along</span>
+              <span className="hidden pointer-coarse:inline">Swipe to ride along</span>
+              <ChevronRight aria-hidden="true" className="size-5 motion-safe:animate-pulse short:rotate-90" />
             </span>
-          </span>
+            <span data-pending className="flex flex-col items-center gap-2 text-white/70">
+              Loading the ride&hellip;
+              <span className="h-0.5 w-28 overflow-hidden rounded-full bg-white/15">
+                <span data-intro-progress className="block h-full origin-left scale-x-0 bg-primary transition-transform duration-200" />
+              </span>
+            </span>
+          </div>
         </div>
 
         {hasPlaceholderFootage ? (

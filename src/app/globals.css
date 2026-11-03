@@ -9,6 +9,13 @@
  */
 @custom-variant world (&:where([data-axis="x"] *));
 
+/* Set on the world as its tunnel scene moves round (world-scroll.ts); only the world's own road reads it, so it isn't inherited (no restyle of every scene). */
+@property --road-shift {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /*
  * Smokey's design tokens: black, gold and white over a living sky.
  * Two themes, switched by the sky (html[data-sky], set before first paint and
@@ -189,12 +196,40 @@
     position: fixed;
     inset: 0;
     display: flex;
+    /*
+     * A native scroller (composited; focus, find-in-page and assistive tech move it), but a loop that only
+     * goes forward: src/components/world/world-scroll.ts takes the visitor's own swipes, wheels and keys
+     * (and moves the tunnel scene round to its end, CSS order, as the journey comes back round to it).
+     */
     overflow-x: auto;
     overflow-y: hidden;
+    overflow-anchor: none;
     overscroll-behavior: none;
     scrollbar-width: none;
     /* The header sits over the scenes: what's scrolled to (focus, find-in-page) clears it. */
     scroll-padding-top: var(--header-h);
+  }
+  /*
+   * Once the world's JS runs, swipes are its own (world-scroll.ts: sideways ones, and vertical ones too,
+   * as the wheel), except a vertical swipe on a panel whose content overflows it (data-overflows, set by
+   * world.tsx), which scrolls that content; pinch zoom stays. On everything in the world, not just the
+   * world itself: a scroll container (each panel) lets its content pan both ways again otherwise.
+   * Zero specificity: a component's own touch-action (the lightbox) still wins. Before the JS runs, the
+   * browser scrolls the world itself.
+   */
+  :where(html[data-axis="x"][data-world-ready]) :where([data-world], [data-world] *) {
+    touch-action: pinch-zoom;
+  }
+  :where(html[data-axis="x"][data-world-ready]) :where([data-overflows], [data-overflows] *) {
+    touch-action: pan-y pinch-zoom;
+  }
+  /* Pinch-zoomed in: the browser's own panning gets every swipe back, and moves the world too (either way). */
+  :where(html[data-axis="x"][data-zoomed]) :where([data-world], [data-world] *) {
+    touch-action: auto;
+  }
+  /* A panel's own content never hands its scroll on to the world. */
+  html[data-axis="x"] [data-world] [data-panel] {
+    overscroll-behavior: contain;
   }
   html[data-axis="x"] [data-world]::-webkit-scrollbar {
     display: none;
@@ -207,7 +242,8 @@
    */
   html[data-axis="x"] [data-world] {
     background:
-      repeating-linear-gradient(to right, var(--road-line) 0 2.5rem, transparent 2.5rem 5.5rem) 0 calc(100% - var(--road-h) * 0.42) / 100% 3px no-repeat local,
+      /* (The dashes keep their place on the screen while the tunnel scene is moved round to the end: --road-shift.) */
+      repeating-linear-gradient(to right, var(--road-line) 0 2.5rem, transparent 2.5rem 5.5rem) calc(0px - var(--road-shift, 0px)) calc(100% - var(--road-h) * 0.42) / calc(100% + var(--road-shift, 0px)) 3px no-repeat local,
       linear-gradient(var(--road-edge), var(--road-edge)) 0 calc(100% - var(--road-h) + 5px) / 100% 2px no-repeat local,
       linear-gradient(to bottom, var(--road-top), var(--road-bottom) 70%) 0 100% / 100% var(--road-h) no-repeat local,
       linear-gradient(to top, rgb(0 0 0 / 0.2), transparent) 0 calc(100% - var(--road-h)) / 100% 1.5rem no-repeat local;
@@ -458,6 +494,48 @@ html[data-intro-still] .intro-scroll {
 }
 
 /*
+ * The tunnel scene moved round to the end of the world (world-scroll.ts, data-round), the journey coming
+ * back round to it: its stage is led in by its own edge in mirror image (OpeningLead, intro-layers.tsx),
+ * fading into the world just before it (the mirror of the dark strip that follows it off, below), so the
+ * world's light turns to the desert's with no edge where they meet. Behind everything but the road.
+ */
+.intro-lead {
+  display: none;
+}
+:where([data-axis="x"]) .intro-scroll[data-round] > .intro-lead {
+  display: block;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: min(40vw, 32rem);
+  overflow: hidden;
+  pointer-events: none;
+  mask-image: linear-gradient(to right, transparent, #000);
+}
+.intro-lead-mirror {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100vw;
+  height: 100%;
+  container-type: size;
+  transform: scaleX(-1);
+}
+/* What the mirror shows where the stage shows the finished hero instead (its engine failed). */
+.intro-lead :is([data-lead-still="rest"], [data-lead-glow="rest"]) {
+  display: none;
+}
+html[data-intro-failed] .intro-lead :is([data-lead-still="rest"], [data-lead-glow="rest"]) {
+  display: block;
+}
+/* Round at the end, nothing follows it: no dark strip into nothing. */
+:where([data-axis="x"]) .intro-scroll[data-round]::after {
+  display: none;
+}
+
+/*
  * The film, framed for any screen (src/content/intro-video.ts: each cut's
  * aspect, focus --fx/--fy and minVisible): covers the frame (the small
  * viewport) like object-fit: cover, but never crops away more than
@@ -501,8 +579,12 @@ html[data-intro-still] .intro-scroll {
 .intro-film[data-banded="x"] {
   mask-image: linear-gradient(to right, transparent, #000 7%, #000 93%, transparent);
 }
-/* Until the film is in memory and parked on its first frame, it never covers the stills. */
-.intro-film video:not([data-ready]) {
+/*
+ * Until the film is in memory and parked on its first frame, it never covers the stills; nor while it's
+ * re-parked off screen (the world's loop coming round to it: intro-engine.ts) until it shows its new frame.
+ */
+.intro-film video:not([data-ready]),
+.intro-film video[data-parking] {
   visibility: hidden;
 }
 
