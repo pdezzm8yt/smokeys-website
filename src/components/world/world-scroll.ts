@@ -48,6 +48,7 @@ export class WorldScroll {
   start() {
     window.addEventListener("wheel", this.onWheel, { passive: false });
     this.world.addEventListener("pointerdown", this.onPointerDown);
+    this.world.addEventListener("dragstart", this.onDragStart);
     window.addEventListener("keydown", this.onKeyDown);
     this.world.addEventListener("focusin", this.onFocusIn);
   }
@@ -55,6 +56,7 @@ export class WorldScroll {
   destroy() {
     window.removeEventListener("wheel", this.onWheel);
     this.world.removeEventListener("pointerdown", this.onPointerDown);
+    this.world.removeEventListener("dragstart", this.onDragStart);
     window.removeEventListener("keydown", this.onKeyDown);
     this.world.removeEventListener("focusin", this.onFocusIn);
     this.endDrag();
@@ -75,7 +77,8 @@ export class WorldScroll {
     }
     this.target = to;
     if (!this.frame) {
-      this.last = performance.now();
+      // The clock starts at the first frame (rAF timestamps can be earlier than performance.now() here).
+      this.last = -1;
       this.written = this.world.scrollLeft;
       this.frame = requestAnimationFrame(this.tick);
     }
@@ -97,7 +100,8 @@ export class WorldScroll {
     const at = this.world.scrollLeft;
     // Something else moved the world (a swipe, a key, an in-page link): it takes over.
     if (Math.abs(at - this.written) > 2) return this.stop();
-    const dt = Math.min(64, now - this.last);
+    // The first frame of a move counts as one frame's worth; never a negative step (it would start backwards).
+    const dt = this.last < 0 ? 16 : Math.min(64, Math.max(0, now - this.last));
     this.last = now;
     const k = 1 - Math.exp(-dt / EASE_MS);
     let next = at + (this.target - at) * k;
@@ -127,7 +131,7 @@ export class WorldScroll {
   private readonly onFocusIn = (e: FocusEvent) => {
     if (currentAxis() !== "x" || this.locked()) return;
     const el = e.target instanceof HTMLElement ? e.target : null;
-    if (!el || !el.matches(":focus-visible") || el === this.world || el.matches("[data-scene], main")) return;
+    if (!el || !el.matches(":focus-visible") || el === this.world || el.matches("[data-scene], main") || el.closest("dialog")) return;
     const r = el.getBoundingClientRect();
     const w = this.world.getBoundingClientRect();
     const margin = Math.min(32, w.width * 0.05);
@@ -178,7 +182,8 @@ export class WorldScroll {
   private readonly onPointerDown = (e: PointerEvent) => {
     if (currentAxis() !== "x" || e.pointerType !== "mouse" || e.button !== 0 || this.locked()) return;
     const target = e.target instanceof Element ? e.target : null;
-    if (!target || target.closest(INTERACTIVE) || target.closest(TEXT)) return;
+    // Never from a control or text, nor inside a modal over the world (the lightbox has its own swipe).
+    if (!target || target.closest(INTERACTIVE) || target.closest(TEXT) || target.closest("dialog")) return;
     this.stop();
     this.drag = { id: e.pointerId, x: e.clientX, left: this.world.scrollLeft, moved: false, v: 0, t: e.timeStamp };
     window.addEventListener("pointermove", this.onPointerMove);
@@ -231,10 +236,19 @@ export class WorldScroll {
   // Keys
   // ---------------------------------------------------------------------------
 
+  /** While the world is being dragged, an image under the pointer isn't dragged away (the browser's own drag and drop). */
+  private readonly onDragStart = (e: DragEvent) => {
+    if (this.drag) e.preventDefault();
+  };
+
   private readonly onKeyDown = (e: KeyboardEvent) => {
     if (currentAxis() !== "x" || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
     const focus = document.activeElement;
     if (focus instanceof Element && focus.closest(KEY_OWNERS)) return;
+    // A focused panel (or anything in it) that can still scroll that way keeps its keys: content that overflows
+    // a panel stays reachable from the keyboard.
+    const dy = { ArrowDown: 1, PageDown: 1, " ": e.shiftKey ? -1 : 1, End: 1, ArrowUp: -1, PageUp: -1, Home: -1 }[e.key];
+    if (dy && focus instanceof Element && scrollsVertically(focus, dy, this.world)) return;
     if (document.querySelector("dialog[open]")) return;
     const w = this.world.clientWidth;
     const at = this.target ?? this.world.scrollLeft;

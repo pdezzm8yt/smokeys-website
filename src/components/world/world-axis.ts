@@ -13,10 +13,12 @@
 export type Axis = "x" | "y";
 
 /**
- * Too short for side-by-side scenes: phones on their side, and any screen at
- * high zoom (400% zoom makes a 1280x1024 window 320x256 CSS px).
+ * Too short for side-by-side scenes, whose panels would then have to scroll
+ * inside themselves: phones on their side, short laptop windows, and any
+ * screen at high zoom (400% zoom makes a 1280x1024 window 320x256 CSS px).
+ * The pre-paint boot script (layout.tsx) uses the same query.
  */
-export const SHORT_SCREEN = "(max-height: 30rem)";
+export const SHORT_SCREEN = "(max-height: 40rem)";
 
 export const html = () => document.documentElement;
 

@@ -103,13 +103,15 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const engine = useRef<IntroEngine | null>(null);
+  /** Starts the engine on the current axis (set once the film is ready): the world turning restarts it. */
+  const restart = useRef<(() => void) | null>(null);
   // Effects only: the first render is the same on the server and the client.
   const axis = useWorldAxis();
 
   useEffect(() => {
     const section = sectionRef.current;
     const stage = stageRef.current;
-    if (!section || !stage || axis !== currentAxis()) return;
+    if (!section || !stage) return;
     // The boot script's failsafe already showed the finished hero (JS arrived very late): keep it.
     if (html().hasAttribute("data-intro-failed")) return;
     const still = introStill();
@@ -125,6 +127,19 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
       setScrollLock(false);
     }
 
+    /**
+     * Until the engine runs, a visitor at or past the scene's end (a nav jump, a
+     * deep link, a restored place) sees the finished hero (the bus, the
+     * branding), not the opening frame; the engine takes over from that frame.
+     */
+    const placeHero = () => {
+      if (engine.current || html().hasAttribute("data-intro-failed")) return;
+      const at = span(section);
+      if (at.to <= at.view + 8) html().dataset.introFinal = "";
+      else delete html().dataset.introFinal;
+    };
+    placeHero();
+
     const media = new FilmMedia(stage, still);
     const progress = stage.querySelector<HTMLElement>("[data-intro-progress]");
     const onProgress = (f: number) => {
@@ -138,14 +153,15 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
     const film = media.load(onProgress, INTRO.filmTimeoutMs);
 
     // While the world holds still at the start, any move away from it is navigation (the "Skip to
-    // content" link, the header's nav, find-in-page): let it go and stop holding.
-    const scroller: HTMLElement | Window = worldElement() ?? window;
+    // content" link, the header's nav, find-in-page): let it go and stop holding. (Capturing: the world's
+    // scroll events, sideways, and the page's, in the column.)
     const onScroll = () => {
+      placeHero();
       if (worldScroll() < 8 || !html().hasAttribute("data-scroll-lock")) return;
       setScrollLock(false);
       html().removeAttribute("data-intro-loading");
     };
-    scroller.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true, capture: true });
 
     let cancelled = false;
     Promise.all([
@@ -165,10 +181,20 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
         // No film (still mode, or it couldn't load in time): the stills tell the story, on the shorter scroll.
         if (!ready) keepPlace(section, () => (html().dataset.introStill = ""));
         window.removeEventListener("resize", onResize);
-        const w = worldElement();
-        const eng = new mod.IntroEngine(section, stage, media, { still: !ready, scroller: w ? { axis: "x", element: w } : { axis: "y" } });
-        engine.current = eng;
-        const landed = eng.start();
+        const create = () => {
+          const w = worldElement();
+          const eng = new mod.IntroEngine(section, stage, media, { still: !ready, scroller: w ? { axis: "x", element: w } : { axis: "y" } });
+          engine.current = eng;
+          return eng.start();
+        };
+        // The world turned (a phone on its side): a new engine on the new axis, from the same place (the
+        // world kept it) and the same film frame (the film itself is kept, not reloaded or rewound).
+        restart.current = () => {
+          engine.current?.destroy({ keepFilm: true });
+          engine.current = null;
+          void create();
+        };
+        const landed = create();
         // After a nav jump past the scene the finished hero is showing: keep it up until the film shows the same frame.
         if (html().hasAttribute("data-intro-final")) await landed;
         if (cancelled) return;
@@ -193,8 +219,9 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
 
     return () => {
       cancelled = true;
+      restart.current = null;
       media.cancel();
-      scroller.removeEventListener("scroll", onScroll);
+      window.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("resize", onResize);
       engine.current?.destroy();
       engine.current = null;
@@ -202,6 +229,11 @@ export function IntroSequence({ film, copy }: IntroSequenceProps) {
       html().removeAttribute("data-intro-loading");
       for (const key of ["introPending", "introStill", "introFinal", "introStage", "introFailed"]) delete html().dataset[key];
     };
+  }, []);
+
+  // The world changed axis: the running engine moves over to it (nothing to do before it runs).
+  useEffect(() => {
+    if (engine.current && axis === currentAxis()) restart.current?.();
   }, [axis]);
 
   return (

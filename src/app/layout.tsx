@@ -5,6 +5,7 @@ import { ActionDrawer } from "@/components/actions/action-drawer";
 import { Providers } from "@/components/providers";
 import { SiteHeader } from "@/components/layout/site-header";
 import { LivingSky } from "@/components/sky/living-sky";
+import { SHORT_SCREEN } from "@/components/world/world-axis";
 import { site } from "@/content/site";
 import { bodyFont, displayFont } from "@/lib/fonts";
 import { siteIndexable } from "@/lib/indexing";
@@ -36,7 +37,9 @@ export const viewport: Viewport = {
 /**
  * Runs before first paint on the homepage, which is one continuous world
  * (src/components/world): it runs sideways (html[data-axis="x"]) unless the
- * screen is too short for side-by-side scenes, where it's a column.
+ * screen is too short for side-by-side scenes, where it's a column. If the
+ * world's own JS hasn't started within 12 s (it sets data-world-ready), it
+ * falls back to the column: sideways, nothing would turn the mouse wheel.
  * At the start of the world, the tunnel scene's branded loader shows (and the
  * world holds still, so an early swipe can't run ahead of the film) until its
  * JS takes over; a deep link (#bus…) or a restored position isn't held.
@@ -46,7 +49,7 @@ export const viewport: Viewport = {
  * properties, and some names are the browser's own (`var top=…` is silently
  * ignored: window.top can't be replaced).
  */
-const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){d.dataset.axis=matchMedia("(max-height: 30rem)").matches?"y":"x";if(!location.hash||location.hash==="#top"){d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},at=function(){var w=document.querySelector("[data-world]");return d.dataset.axis==="x"&&w?w.scrollLeft:scrollY};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";free()}},12000);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r,true);return}if(at()>8)free()},{passive:true,capture:true})}}}catch(e){}})()`;
+const introBootScript = `(function(){try{var d=document.documentElement;if(location.pathname==="/"){d.dataset.axis=matchMedia("${SHORT_SCREEN}").matches?"y":"x";setTimeout(function(){if(!d.hasAttribute("data-world-ready"))delete d.dataset.axis},12000);if(!location.hash||location.hash==="#top"){d.dataset.introLoading="";d.dataset.scrollLock="";var js=function(){return d.dataset.introLoading==="js"||!d.hasAttribute("data-intro-loading")},free=function(){delete d.dataset.scrollLock;d.removeAttribute("data-intro-loading")},at=function(){var w=document.querySelector("[data-world]");return d.dataset.axis==="x"&&w?w.scrollLeft:scrollY};setTimeout(function(){if(d.dataset.introLoading===""){d.dataset.introFinal="";d.dataset.introFailed="";free()}},12000);addEventListener("scroll",function r(){if(js()){removeEventListener("scroll",r,true);return}if(at()>8)free()},{passive:true,capture:true})}}}catch(e){}})()`;
 
 /**
  * Before first paint on every page: day or night sky (and the matching page

@@ -140,29 +140,33 @@ export class SkyEngine {
   }
 
   /**
-   * The intro film covers the sky while it plays: no work until the page below
-   * it shows. Watches this page's #main; call again after a navigation (each
-   * page renders its own), and a removed #main is swapped for the new one.
+   * The tunnel scene's film covers the sky while it plays: no work until the
+   * rest of the page (#main, or the footer) shows. Call again after a
+   * navigation (each page renders its own); removed parts are swapped for the new ones.
    */
   observeMain() {
     this.observer?.disconnect();
     this.observer = null;
-    const main = document.querySelector("#main");
+    // Everything the sky shows around: the scenes, and the footer (the world's last stop, outside #main).
+    const parts = [...document.querySelectorAll("#main, #footer")];
     this.visible = true;
     this.root.removeAttribute("data-paused");
-    if (!main) return;
+    if (!parts.length) return;
+    // Each callback only carries the parts that changed: keep every part's state.
+    const shown = new Map<Element, boolean>();
     this.observer = new IntersectionObserver((entries) => {
       if (entries.some((e) => !e.target.isConnected)) {
-        // The page changed under us (client-side navigation, an error reset): watch its new #main.
+        // The page changed under us (client-side navigation, an error reset): watch its new parts.
         queueMicrotask(() => this.observeMain());
         return;
       }
-      this.visible = entries.some((e) => e.isIntersecting);
+      for (const e of entries) shown.set(e.target, e.isIntersecting);
+      this.visible = [...shown.values()].some(Boolean);
       this.root.toggleAttribute("data-paused", !this.visible);
       this.dirty = true;
       this.schedule();
     });
-    this.observer.observe(main);
+    for (const part of parts) this.observer.observe(part);
     this.dirty = true;
     this.schedule();
   }

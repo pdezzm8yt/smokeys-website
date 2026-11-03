@@ -25,7 +25,8 @@ type Mode = keyof typeof MODES;
 const isMode = (m: string | undefined): m is Mode => !!m && m in MODES;
 
 const field =
-  "w-full rounded-xl bg-surface px-3.5 py-3 text-base text-foreground ring-1 ring-border transition-shadow placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+  // The outline that identifies a field must stand out (3:1, WCAG 1.4.11): the muted text colour, not the hairline border.
+  "w-full rounded-xl bg-surface px-3.5 py-3 text-base text-foreground ring-1 ring-muted-foreground transition-shadow placeholder:text-muted-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
 /**
  * The world's actions (Book, Get a quote, Schedule, Message, Email) open this

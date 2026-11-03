@@ -412,6 +412,8 @@
 :where([data-axis="x"]) .intro-scroll::after {
   content: "";
   position: absolute;
+  /* Behind everything in the world but its road: never over a scene's panel, animated or not. */
+  z-index: -1;
   top: 0;
   bottom: 0;
   left: 100%;
@@ -437,6 +439,10 @@
 /* Controls along the bottom sit in the small viewport, never under a phone's toolbar. */
 .intro-bottom-ui {
   bottom: calc(100lvh - 100svh + max(1.25rem, env(safe-area-inset-bottom)));
+}
+/* Sideways the stage fills the world (the screen as it is): its bottom is the screen's. */
+:where([data-axis="x"]) .intro-bottom-ui {
+  bottom: max(1.25rem, env(safe-area-inset-bottom));
 }
 html[data-intro-still] .intro-scroll {
   --screens-active: var(--intro-still-screens, 2);

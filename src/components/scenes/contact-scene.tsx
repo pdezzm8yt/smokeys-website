@@ -12,7 +12,8 @@ export function ContactScene() {
       id="contact"
       labelledBy="quote-title"
       wide
-      className="sm:world:w-screen"
+      // Down the page (the column), the old quote section's breathing room before the footer.
+      className="sm:world:w-screen [html:not([data-axis=x])_&]:pb-24 sm:[html:not([data-axis=x])_&]:pb-32"
       panelClassName="sm:world:w-full sm:world:[@media(max-height:42rem)]:py-8"
     >
       <QuoteCta />

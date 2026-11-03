@@ -1,13 +1,45 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { GuideBus } from "./guide-bus";
 import { setAxis, SHORT_SCREEN } from "./world-axis";
-import { setScene } from "./world-scene";
+import { setScene, useWorldAxis } from "./world-scene";
 import { WorldScroll } from "./world-scroll";
 
 /** Where the visitor was in the world (a reload, or back from another page, returns them there). */
 const PLACE_KEY = "smokeys:world-place";
+
+type Place = { scene: HTMLElement; p: number };
+
+/**
+ * Where the visitor is, on whichever axis: the scene in view, and how far
+ * through its scroll range (a scene no longer than the screen: its start).
+ */
+function placeNow(world: HTMLElement): Place | null {
+  const x = document.documentElement.dataset.axis === "x";
+  const at = x ? world.scrollLeft : window.scrollY;
+  const view = x ? world.clientWidth : window.innerHeight;
+  const origin = x ? world.getBoundingClientRect().left - world.scrollLeft : -window.scrollY;
+  const all = [...world.querySelectorAll<HTMLElement>("[data-scene]")];
+  const startOf = (s: HTMLElement) => (x ? s.getBoundingClientRect().left : s.getBoundingClientRect().top) - origin;
+  const scene = [...all].reverse().find((s) => startOf(s) <= at + view / 2) ?? all[0];
+  if (!scene) return null;
+  const size = x ? scene.offsetWidth : scene.offsetHeight;
+  const p = size > view ? Math.min(1, Math.max(0, (at - startOf(scene)) / (size - view))) : 0;
+  return { scene, p };
+}
+
+/** Back to a place, on the current axis. */
+function goToPlace(world: HTMLElement, place: Place) {
+  const x = document.documentElement.dataset.axis === "x";
+  const view = x ? world.clientWidth : window.innerHeight;
+  const r = place.scene.getBoundingClientRect();
+  const start = x ? r.left - world.getBoundingClientRect().left + world.scrollLeft : r.top + window.scrollY;
+  const size = x ? place.scene.offsetWidth : place.scene.offsetHeight;
+  const to = start + place.p * Math.max(0, size - view);
+  if (x) world.scrollTo({ left: to, behavior: "instant" });
+  else window.scrollTo({ top: to, behavior: "instant" });
+}
 
 /**
  * The homepage as ONE continuous world: the tunnel scene first, then every
@@ -23,23 +55,59 @@ const PLACE_KEY = "smokeys:world-place";
 export function World({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLDivElement>(null);
+  /** Where the visitor was when the world started turning (sideways ↔ column). */
+  const turning = useRef<Place | null>(null);
+  const axis = useWorldAxis();
+
+  // The world has turned and re-rendered (components that differ per axis included): back to the same place,
+  // before the tunnel scene's engine restarts (a passive effect), so it starts from there too.
+  useLayoutEffect(() => {
+    const world = ref.current;
+    const place = turning.current;
+    turning.current = null;
+    if (world && place) goToPlace(world, place);
+  }, [axis]);
 
   useEffect(() => {
     const world = ref.current;
     if (!world) return;
-    const short = window.matchMedia(SHORT_SCREEN);
-    const layout = () => setAxis(short.matches ? "y" : "x");
-    layout();
-    short.addEventListener("change", layout);
-
     const input = new WorldScroll(world, () => document.documentElement.hasAttribute("data-scroll-lock"));
     input.start();
+    // The world is running (the boot script's failsafe stands down: it would fall back to the column).
+    document.documentElement.dataset.worldReady = "";
+
+    /**
+     * Where the visitor is, kept up to date as they MOVE (never on a resize: by
+     * the time a resize is heard, the scenes have already changed size, so the
+     * same scroll position may be a different scene).
+     */
+    let lastPlace: Place | null = null;
+
+    // Sideways, or a column on a short screen. Turning between them keeps the visitor where they were (the
+    // same scene, as far through it): gone back to once the turned world has rendered (above).
+    const short = window.matchMedia(SHORT_SCREEN);
+    const layout = () => {
+      const next = short.matches ? "y" : "x";
+      const was = document.documentElement.dataset.axis;
+      if (was && was !== next) turning.current = lastPlace ?? placeNow(world);
+      setAxis(next);
+    };
+    layout();
+    short.addEventListener("change", layout);
 
     // In-page links (the nav, the CTAs, the logo) glide to the START of their scene: the browser's own jump
     // would line up whichever edge is nearest. Focus moves there too, as with a native jump.
     const sideways = () => document.documentElement.dataset.axis === "x";
     const target = (hash: string) => {
-      const el = hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+      if (hash.length < 2) return null;
+      // A stray "%" in a shared link (#50%off) can't be decoded: that's simply no target, never an error.
+      let id = hash.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        // (kept as it is)
+      }
+      const el = document.getElementById(id);
       return el && world.contains(el) ? el : null;
     };
     const arrive = (el: HTMLElement, instant: boolean) => {
@@ -57,11 +125,20 @@ export function World({ children }: { children: ReactNode }) {
       const el = target(url.hash);
       if (!el) return;
       e.preventDefault();
-      if (url.hash !== window.location.hash) window.history.pushState(null, "", url.hash);
+      if (url.hash !== window.location.hash) {
+        // Remember where the visitor was on the entry they're leaving, so Back returns there. Only on entries
+        // Next owns (with its __NA mark): Next reloads the page on Back to a non-empty state without it.
+        const state = window.history.state as { __NA?: boolean } | null;
+        if (state?.__NA) window.history.replaceState({ ...state, worldX: world.scrollLeft }, "");
+        window.history.pushState(null, "", url.hash);
+      }
       arrive(el, false);
     };
-    const onPopState = () => {
-      const el = sideways() ? target(window.location.hash) : null;
+    const onPopState = (e: PopStateEvent) => {
+      if (!sideways()) return;
+      const back = (e.state as { worldX?: unknown } | null)?.worldX;
+      if (typeof back === "number") return input.moveTo(back);
+      const el = target(window.location.hash);
       if (el) arrive(el, false);
     };
     document.addEventListener("click", onClick);
@@ -87,8 +164,11 @@ export function World({ children }: { children: ReactNode }) {
     // Progress along the world, and which scene is in view (the header's nav follows it).
     const scenes = () => [...world.querySelectorAll<HTMLElement>("[data-scene]")];
     let frame = 0;
+    let moved = true;
     const update = () => {
       frame = 0;
+      if (moved) lastPlace = placeNow(world);
+      moved = false;
       const sideways = document.documentElement.dataset.axis === "x";
       const at = sideways ? world.scrollLeft : window.scrollY;
       const max = sideways ? world.scrollWidth - world.clientWidth : document.documentElement.scrollHeight - window.innerHeight;
@@ -102,11 +182,22 @@ export function World({ children }: { children: ReactNode }) {
       setScene(current?.id ?? null);
     };
     const onScroll = () => {
+      moved = true;
       frame ||= requestAnimationFrame(update);
+    };
+    // Sideways, a resize changes the scenes' widths (several follow the screen's height): the visitor stays
+    // in the same scene, as far through it, rather than wherever the old scroll position now falls.
+    let resizing = 0;
+    const onResize = () => {
+      cancelAnimationFrame(resizing);
+      resizing = requestAnimationFrame(() => {
+        if (document.documentElement.dataset.axis === "x" && lastPlace) goToPlace(world, lastPlace);
+        frame ||= requestAnimationFrame(update);
+      });
     };
     world.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onResize);
     update();
 
     const savePlace = () => {
@@ -134,11 +225,13 @@ export function World({ children }: { children: ReactNode }) {
       input.destroy();
       world.removeEventListener("scroll", onScroll);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(resizing);
       window.removeEventListener("pagehide", savePlace);
       cancelAnimationFrame(frame);
       setScene(null);
       setAxis(null);
+      delete document.documentElement.dataset.worldReady;
     };
   }, []);
 

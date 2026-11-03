@@ -2,7 +2,7 @@
 /**
  * Checks for the living sky (src/components/sky) in Chromium, GPU on, behind the homepage's world
  * (src/components/world): sideways (html[data-axis="x"]: [data-world] scrolls along x, the page itself
- * never scrolls) wherever the screen is at least 30rem tall, a column (window.scrollY) on shorter ones.
+ * never scrolls) wherever the screen is at least 40rem tall, a column (window.scrollY) on shorter ones.
  *
  *   npm run test:sky -- [baseUrl] [--quick]
  *
