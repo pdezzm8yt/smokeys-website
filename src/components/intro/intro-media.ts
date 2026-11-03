@@ -181,12 +181,18 @@ export class FilmMedia {
   /** Stops a load in progress (unmount, or the intro gave up). */
   private stop: (() => void) | null = null;
 
+  /** The mirror image of the stage's edge that leads it in when the world's loop comes round to it (OpeningLead). */
+  private readonly mirror: HTMLElement | null;
+
   constructor(
     root: HTMLElement,
     /** Reduced motion / Save-Data / 2G: stills only, nothing downloaded. */
     readonly still: boolean,
+    /** Where pictures of the stage are kept framed exactly like it (its lead-in), if there are any. */
+    mirror: HTMLElement | null = null,
   ) {
     this.root = root;
+    this.mirror = mirror;
     this.cut = cutFor(window.matchMedia(WIDE_SCREEN).matches);
     this.box = root.querySelector<HTMLElement>("[data-film-box]");
     this.video = this.box?.querySelector("video") ?? null;
@@ -206,8 +212,10 @@ export class FilmMedia {
     if (!box) return;
     const frameHeight = this.root.querySelector<HTMLElement>("[data-frame]")?.offsetHeight || this.root.clientHeight;
     const band = box.offsetHeight < frameHeight - 1 ? "y" : box.offsetWidth < this.root.clientWidth - 1 ? "x" : null;
-    if (band) box.dataset.banded = band;
-    else delete box.dataset.banded;
+    for (const b of [box, ...(this.mirror?.querySelectorAll<HTMLElement>("[data-lead-film]") ?? [])]) {
+      if (band) b.dataset.banded = band;
+      else delete b.dataset.banded;
+    }
   }
 
   /**
@@ -218,7 +226,9 @@ export class FilmMedia {
   private pin() {
     const cut = this.cut;
     if (!cut) return;
-    if (this.box) for (const [k, v] of Object.entries(framingVars(cut))) this.box.style.setProperty(k, String(v));
+    for (const box of [this.box, ...(this.mirror?.querySelectorAll<HTMLElement>("[data-lead-film]") ?? [])]) {
+      if (box) for (const [k, v] of Object.entries(framingVars(cut))) box.style.setProperty(k, String(v));
+    }
     const pinTo = (picture: HTMLElement, file: string) => {
       const img = picture.querySelector("img");
       if (!img) return;
@@ -233,6 +243,13 @@ export class FilmMedia {
     for (const picture of this.root.querySelectorAll<HTMLElement>("[data-glow]")) {
       const name = picture.dataset.glow as FilmGlow;
       pinTo(picture, cut.manifest.glows[name]);
+    }
+    // Its lead-in shows the same frames as the stage, whatever the screen does later.
+    for (const picture of this.mirror?.querySelectorAll<HTMLElement>("[data-lead-still]") ?? []) {
+      pinTo(picture, cut.manifest.stills[picture.dataset.leadStill as FilmStill]);
+    }
+    for (const picture of this.mirror?.querySelectorAll<HTMLElement>("[data-lead-glow]") ?? []) {
+      pinTo(picture, cut.manifest.glows[picture.dataset.leadGlow as FilmGlow]);
     }
   }
 

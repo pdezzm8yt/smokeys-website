@@ -2,7 +2,7 @@
 
 import { Menu, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
-import { worldScroll } from "@/components/world/world-axis";
+import { worldTravel } from "@/components/world/world-axis";
 import { useWorldScene } from "@/components/world/world-scene";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -18,12 +18,13 @@ export function SiteHeader() {
   const menuId = useId();
 
   // A border once the visitor has moved along (down the page, or along the sideways world: its scroll
-  // events reach a capturing listener); only re-render when the threshold flips.
+  // events reach a capturing listener; the journey, so it stays round the loop); only re-render when the
+  // threshold flips.
   useEffect(() => {
     let frame = 0;
     const onScroll = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => setScrolled(worldScroll() > 24));
+      frame = requestAnimationFrame(() => setScrolled(worldTravel() > 24));
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true, capture: true });

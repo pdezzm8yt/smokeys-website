@@ -1,12 +1,7 @@
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { FILM_GLOWS, frameTimes, type FilmBeats } from "@/content/intro-video";
 import { INTRO } from "./intro-config";
 import type { FilmMedia } from "./intro-media";
-
-gsap.registerPlugin(ScrollTrigger);
-// Phones: the address bar showing/hiding must not re-measure (and jolt) the scene.
-ScrollTrigger.config({ ignoreMobileResize: true });
 
 /**
  * The tunnel scene's animation engine: ONE GSAP master timeline, scrubbed by
@@ -23,13 +18,21 @@ ScrollTrigger.config({ ignoreMobileResize: true });
  *
  * The stage is pinned with CSS `position: sticky` inside a long section (wide
  * in the sideways world, tall where the world falls back to scrolling down);
- * one ScrollTrigger maps that section's scroll progress onto the master
- * timeline (with a little scrub smoothing), so scrolling back plays it all in
- * reverse. The FILM provides the movement: it follows the playhead frame by
- * frame (it never plays on its own), through the film's beats
- * (src/content/intro-video.ts), each stretch paced by INTRO.timeline. That is
- * decided in one idempotent `sync()` from the timeline's current time, so any
- * scroll jump, in either direction, lands on the right frame.
+ * the section's scroll progress drives the master timeline, which eases
+ * after it (INTRO.scroll.scrub: smooth on wheel steps and touch flicks), so
+ * going back plays it all in reverse. The FILM provides the movement: it
+ * follows the playhead frame by frame (it never plays on its own), through
+ * the film's beats (src/content/intro-video.ts), each stretch paced by
+ * INTRO.timeline. That is decided in one idempotent `sync()` from the
+ * timeline's current time, so any jump, either way, lands on the right frame.
+ *
+ * Sideways the world is a loop (src/components/world): after its last scene
+ * the journey comes back round to this scene, which the world moves round to
+ * its end for that. So the scene is either behind the visitor (the story
+ * finished, the bus at rest) or ahead of them (its start, the film on its
+ * first frame), and the story only plays again as they travel on into it.
+ * Off the screen the timeline is set at once (nobody sees it); on it, it
+ * always eases.
  *
  * Reduced motion (or Save-Data, or a film that couldn't load): the same story
  * as crossfaded stills (the black still hides the change) on a shorter scroll.
@@ -105,17 +108,24 @@ export class IntroEngine {
   private readonly beats: FilmBeats;
   private readonly story: ReturnType<typeof storyFor>;
   private master: gsap.core.Timeline | null = null;
-  private trigger: ScrollTrigger | null = null;
   /** Frame-accurate scrubbing without a seek backlog: one seek in flight, the latest target queued. */
   private seeking: { busy: boolean; want: number; requested: number; onSeeked: () => void } | null = null;
   private revealed: boolean | null = null;
-  /**
-   * ScrollTrigger reverts the timeline to 0 while it re-measures (resize,
-   * rotation, a refresh) and then restores it silently: sync() must ignore
-   * that revert and run once the refresh is done.
-   */
-  private refreshing = false;
   private destroyed = false;
+  /**
+   * Eases the timeline toward where the scroll would have it, INTRO.scroll.scrub
+   * seconds to catch up (the very mechanism ScrollTrigger's scrub uses: one
+   * tween, retargeted; nothing created while scrolling).
+   */
+  private toP: gsap.QuickToFunc | null = null;
+  /** Re-measuring after a resize waits for the world to put the visitor back in their place. */
+  private resizing = 0;
+  /**
+   * Re-parked off screen (the world moving the scene round), the film is out
+   * of sight (its stills underneath show the scene) until it shows the
+   * playhead's new frame; each park outdates any reveal still waiting.
+   */
+  private parkings = 0;
 
   constructor(
     /** The long scrolling section (its scroll range drives the timeline). */
@@ -187,7 +197,7 @@ export class IntroEngine {
 
   /** Everything that isn't a plain tween, derived from the playhead (idempotent: any jump lands right). */
   private readonly sync = () => {
-    if (this.destroyed || this.refreshing) return;
+    if (this.destroyed) return;
     const t = this.master?.time() ?? 0;
     if (!this.opts.still && this.film.ready) this.seek(mapTime(this.story.film, t));
     // The branding is in: other parts of the page (the header's home link state, tests) can tell.
@@ -202,17 +212,91 @@ export class IntroEngine {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /** Where the section is along the scroll, and how far it scrolls (px). */
+  /**
+   * Where the section is along the scroll, how far it scrolls while its stage
+   * stays pinned (px: its length less the stage's, which is the large
+   * viewport down the page, so a phone's toolbar coming and going never
+   * changes it), and its whole length.
+   */
   private measure() {
     const { scroller } = this.opts;
     if (scroller.axis === "x") {
       const w = scroller.element;
       const start = this.section.getBoundingClientRect().left - w.getBoundingClientRect().left + w.scrollLeft;
-      return { at: w.scrollLeft, start, range: this.section.offsetWidth - w.clientWidth };
+      return { at: w.scrollLeft, start, range: this.section.offsetWidth - this.stage.offsetWidth, size: this.section.offsetWidth, view: w.clientWidth };
     }
     const start = this.section.getBoundingClientRect().top + window.scrollY;
-    return { at: window.scrollY, start, range: this.section.offsetHeight - window.innerHeight };
+    return { at: window.scrollY, start, range: this.section.offsetHeight - this.stage.offsetHeight, size: this.section.offsetHeight, view: window.innerHeight };
   }
+
+  /**
+   * Where the timeline should be for the scroll position now (behind the
+   * scene: finished; ahead of it, as when the world's loop is coming round to
+   * it: its start), and whether the stage is off the screen (then nothing
+   * eases: it goes straight there).
+   */
+  private target() {
+    const { at, start, range, size, view } = this.measure();
+    const into = at - start;
+    return { p: gsap.utils.clamp(0, 1, range > 0 ? into / range : 0), offscreen: into >= size || into <= -view };
+  }
+
+  /**
+   * Follow the scroll: ease the timeline toward where it should be, or set it
+   * at once (off screen, `instant`). The world's trips (html[data-trip],
+   * src/components/world/world-scroll.ts) ask for more: "past" one that
+   * passes the tunnel by leaves its stage as it is while it's on screen (it
+   * is pinned there, so it looks the same until it moves off); "story" one
+   * that ends in it plays it in step with the trip (already eased).
+   */
+  private follow(instant = false) {
+    const tl = this.master;
+    if (this.destroyed || !tl || !this.toP) return;
+    const { p, offscreen } = this.target();
+    const trip = document.documentElement.dataset.trip;
+    if (trip === "past" && !offscreen) return;
+    if (offscreen || instant || trip === "story") {
+      if (p !== tl.totalProgress()) this.jump(p, offscreen);
+      return;
+    }
+    this.toP(p);
+  }
+
+  /** The timeline straight to `p` (the easing starts again from there). */
+  private show(p: number) {
+    this.master?.totalProgress(p); // onUpdate: sync()
+    this.toP?.(p, p);
+  }
+
+  /**
+   * Straight to `p`. Off screen (`hidden`), the film is re-parked out of
+   * sight (see `parkings`), so even a trip that brings the stage straight back
+   * on screen never sees the frame it left.
+   */
+  private jump(p: number, hidden: boolean) {
+    const v = this.film.video;
+    if (hidden && !this.opts.still && this.film.ready && v) {
+      v.dataset.parking = "";
+      this.parkings++;
+    }
+    const parking = this.parkings;
+    this.show(p);
+    // Out of sight until the film shows this jump's frame (any later jump while it's still parked brings it back
+    // once ITS frame lands; only a newer park outdates this).
+    if (v?.hasAttribute("data-parking"))
+      void this.landed().then(() => {
+        if (!this.destroyed && parking === this.parkings) delete v.dataset.parking;
+      });
+  }
+
+  private readonly onScroll = () => this.follow();
+
+  /** A layout change isn't travel: once the world has put the visitor back in place (its own frame comes first), straight there. */
+  private readonly onResize = () => {
+    this.film.band();
+    cancelAnimationFrame(this.resizing);
+    this.resizing = requestAnimationFrame(() => this.follow(true));
+  };
 
   /**
    * Build the timeline (measured while nothing moves) and hook it to the
@@ -225,31 +309,13 @@ export class IntroEngine {
     this.ctx.add(() => {
       const tl = this.opts.still ? this.stillTimeline() : this.cinematicTimeline();
       this.master = tl; // sync() reads the playhead from here
-      // Opened part-way along (deep link, restored position): start there. Set before the trigger
-      // exists, so its scrub has nothing to catch up on (it would play the story up to here).
-      const { at, start, range } = this.measure();
-      tl.progress(gsap.utils.clamp(0, 1, range > 0 ? (at - start) / range : 0));
-      const { scroller } = this.opts;
-      this.trigger = ScrollTrigger.create({
-        trigger: this.section,
-        ...(scroller.axis === "x"
-          ? { scroller: scroller.element, horizontal: true, start: "left left", end: "right right" }
-          : { start: "top top", end: "bottom bottom" }),
-        animation: tl,
-        // The timeline eases toward the scroll position: smooth on wheel steps and touch flicks alike.
-        scrub: this.opts.still ? 0.4 : INTRO.scroll.scrub,
-        invalidateOnRefresh: true,
-        onRefreshInit: () => {
-          this.refreshing = true;
-          this.film.band(); // re-measure before the timeline is re-evaluated
-        },
-        onRefresh: () => {
-          this.refreshing = false;
-          this.sync();
-        },
-      });
+      this.toP = gsap.quickTo(tl, "totalProgress", { duration: this.opts.still ? 0.4 : INTRO.scroll.scrub, ease: "expo" });
     });
-    this.refreshing = false;
+    // Opened part-way along (deep link, restored position): start there, at once.
+    this.follow(true);
+    // Capturing: the sideways world is a scroll container, whose scroll events don't reach the window otherwise.
+    window.addEventListener("scroll", this.onScroll, { passive: true, capture: true });
+    window.addEventListener("resize", this.onResize);
     this.sync();
     return this.landed();
   }
@@ -261,12 +327,16 @@ export class IntroEngine {
    */
   destroy({ keepFilm = false }: { keepFilm?: boolean } = {}) {
     this.destroyed = true;
+    window.removeEventListener("scroll", this.onScroll, { capture: true });
+    window.removeEventListener("resize", this.onResize);
+    cancelAnimationFrame(this.resizing);
     if (this.seeking) this.film.video?.removeEventListener("seeked", this.seeking.onSeeked);
     this.seeking = null;
-    // revert (not kill): the timeline, its trigger and every fade restore what they changed.
+    if (this.film.video) delete this.film.video.dataset.parking;
+    // revert (not kill): the timeline and every fade restore what they changed.
     this.ctx.revert();
-    this.trigger = null;
     this.master = null;
+    this.toP = null;
     if (!keepFilm) this.film.reset();
     gsap.set(this.q("[data-camera], [data-still], [data-glow], [data-fx]"), { clearProps: "opacity,visibility,transform" });
     delete document.documentElement.dataset.introStage;
@@ -280,8 +350,8 @@ export class IntroEngine {
    * Every tween is a fromTo with explicit start AND end values, and (after
    * position 0) never renders its start early: before a tween starts, the
    * element shows its CSS resting state, which equals that start. So any
-   * scroll position, reached from any direction or after any re-measure
-   * (resize, rotation), always looks the same.
+   * scroll position, reached from any direction or after any jump (a resize,
+   * a rotation, the loop coming round), always looks the same.
    */
   private timeline(ease: string) {
     // onUpdate: the film follows the playhead.

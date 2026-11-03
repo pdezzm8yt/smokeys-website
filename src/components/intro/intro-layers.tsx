@@ -30,11 +30,20 @@ type Frame = { kind: "still"; name: FilmStill } | { kind: "glow"; name: FilmGlow
  * version (chosen before anything downloads). Once the intro runs it locks
  * in the cut it picked for this screen (intro-media.ts).
  */
-function CutPicture({ frame, className, priority }: { frame: Frame; className?: string; priority?: "high" | "low" }) {
+function CutPicture({ frame, className, priority, lead = false }: { frame: Frame; className?: string; priority?: "high" | "low"; lead?: boolean }) {
   if (!tall) return null;
   const file = (cut: Cut) => (frame.kind === "still" ? cut.manifest.stills[frame.name] : cut.manifest.glows[frame.name]);
+  // The lead-in's mirror images are marked apart (FilmMedia pins them to the same cut; nothing mistakes them for the stage's).
+  const still = frame.kind === "still" ? frame.name : undefined;
+  const glow = frame.kind === "glow" ? frame.name : undefined;
   return (
-    <picture data-still={frame.kind === "still" ? frame.name : undefined} data-glow={frame.kind === "glow" ? frame.name : undefined} className={className}>
+    <picture
+      data-still={lead ? undefined : still}
+      data-glow={lead ? undefined : glow}
+      data-lead-still={lead ? still : undefined}
+      data-lead-glow={lead ? glow : undefined}
+      className={className}
+    >
       {wide && wide !== tall ? <source media={WIDE_SCREEN} srcSet={filmUrl(file(wide))} /> : null}
       {/* A plain <img>: the film's own frames (no re-encode by the image optimizer). */}
       <img src={filmUrl(file(tall))} alt="" decoding="async" fetchPriority={priority} className="size-full object-cover" />
@@ -132,6 +141,31 @@ export function IntroCopy() {
             See the Bus
           </ButtonLink>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What leads the tunnel stage in when the world's loop comes back round to
+ * it (src/components/world/world-scroll.ts: the scene is moved round to the
+ * end of the world): the stage's own edge in mirror image, its glow behind
+ * its film framed exactly as the stage frames them (FilmMedia pins it to the
+ * same cut), fading into the world (globals.css: .intro-lead), so the world's
+ * light turns to the desert's with no edge where they meet. Pictures only.
+ */
+export function OpeningLead() {
+  if (!tall) return null;
+  const style = { ...framingVars(tall, "tall-"), ...framingVars(wide ?? tall, "wide-") } as CSSProperties;
+  return (
+    <div className="intro-lead-mirror theme-night">
+      <div className="absolute inset-0 overflow-hidden bg-black">
+        <CutPicture lead frame={{ kind: "glow", name: "start" }} className="absolute inset-0" />
+        <CutPicture lead frame={{ kind: "glow", name: "rest" }} className="absolute inset-0" />
+      </div>
+      <div data-lead-film className="intro-film" style={style}>
+        <CutPicture lead frame={{ kind: "still", name: "start" }} className="absolute inset-0" />
+        <CutPicture lead frame={{ kind: "still", name: "rest" }} className="absolute inset-0" />
       </div>
     </div>
   );
