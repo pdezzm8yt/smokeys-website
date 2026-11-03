@@ -79,13 +79,17 @@ function storyFor(beats: FilmBeats) {
   const brand = rest + T.brandAfterRest;
   const ctas = brand + T.ctaAfterBrand;
   const travel = ctas + T.ctaLength;
-  /** [timeline, film seconds] at each beat: the film follows this line (a step at the swap). */
+  /**
+   * [timeline, film seconds] at each beat: the film follows this line. At the
+   * swap it STEPS (two points at the same place: mapTime takes the first up to
+   * it and the second just past it), so no frame in between is ever decoded.
+   */
   const film: [number, number][] = [
     [0, 0],
     [tunnel, beats.tunnel],
     [dark, beats.dark],
     [swap, beats.dark],
-    [swap + 0.001, beats.lights],
+    [swap, beats.lights],
     [lights, beats.lights],
     [emerge, beats.lights + (beats.rest - beats.lights) * T.lightsShare],
     [rest, beats.rest],
@@ -250,8 +254,12 @@ export class IntroEngine {
     return this.landed();
   }
 
-  /** Put the DOM and the film back exactly as the page started (unmount, or the world changing axis). */
-  destroy() {
+  /**
+   * Put the DOM back exactly as the page started (unmount), and the film too
+   * unless `keepFilm` (the world changing axis: a new engine takes over at the
+   * same frame, so the film mustn't rewind meanwhile).
+   */
+  destroy({ keepFilm = false }: { keepFilm?: boolean } = {}) {
     this.destroyed = true;
     if (this.seeking) this.film.video?.removeEventListener("seeked", this.seeking.onSeeked);
     this.seeking = null;
@@ -259,7 +267,7 @@ export class IntroEngine {
     this.ctx.revert();
     this.trigger = null;
     this.master = null;
-    this.film.reset();
+    if (!keepFilm) this.film.reset();
     gsap.set(this.q("[data-camera], [data-still], [data-glow], [data-fx]"), { clearProps: "opacity,visibility,transform" });
     delete document.documentElement.dataset.introStage;
   }

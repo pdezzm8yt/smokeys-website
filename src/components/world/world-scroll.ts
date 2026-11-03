@@ -75,7 +75,8 @@ export class WorldScroll {
     }
     this.target = to;
     if (!this.frame) {
-      this.last = performance.now();
+      // The clock starts at the first frame (rAF timestamps can be earlier than performance.now() here).
+      this.last = -1;
       this.written = this.world.scrollLeft;
       this.frame = requestAnimationFrame(this.tick);
     }
@@ -97,7 +98,8 @@ export class WorldScroll {
     const at = this.world.scrollLeft;
     // Something else moved the world (a swipe, a key, an in-page link): it takes over.
     if (Math.abs(at - this.written) > 2) return this.stop();
-    const dt = Math.min(64, now - this.last);
+    // The first frame of a move counts as one frame's worth; never a negative step (it would start backwards).
+    const dt = this.last < 0 ? 16 : Math.min(64, Math.max(0, now - this.last));
     this.last = now;
     const k = 1 - Math.exp(-dt / EASE_MS);
     let next = at + (this.target - at) * k;
@@ -127,7 +129,7 @@ export class WorldScroll {
   private readonly onFocusIn = (e: FocusEvent) => {
     if (currentAxis() !== "x" || this.locked()) return;
     const el = e.target instanceof HTMLElement ? e.target : null;
-    if (!el || !el.matches(":focus-visible") || el === this.world || el.matches("[data-scene], main")) return;
+    if (!el || !el.matches(":focus-visible") || el === this.world || el.matches("[data-scene], main") || el.closest("dialog")) return;
     const r = el.getBoundingClientRect();
     const w = this.world.getBoundingClientRect();
     const margin = Math.min(32, w.width * 0.05);
