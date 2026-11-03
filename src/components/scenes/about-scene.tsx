@@ -15,7 +15,7 @@ export function AboutScene() {
           id="about-title"
           eyebrow="About Smokey's"
           title="One black party bus. Your whole crew on board."
-          lede="Smokey's own story goes here: who's behind the wheel, how it started, and the licensing and insurance that keep every ride above board."
+          lede="Smokey's own story goes here: who's behind the wheel, how it started, and what makes a ride with us different."
           align="center"
         />
         <SampleTag label="About text coming from Smokey's" className="mt-8" />

@@ -10,7 +10,7 @@
  * Playwright's Chromium plays the H.264 files; flow 13 forces the VP9 fallback.
  *
  * The world runs SIDEWAYS (html[data-axis="x"]: [data-world] scrolls along x, the page itself never
- * scrolls) wherever the screen is at least 30rem tall; the tunnel scene (section#top) is its first
+ * scrolls) wherever the screen is at least 40rem tall; the tunnel scene (section#top) is its first
  * stretch: its stage stays pinned (sticky) while the scene's range (5 screens of min(100vw, 100svh); 2
  * for the stills) scrubs the film, then the stage slides out and the world carries on (#bus...). On
  * shorter screens, and without JS, the world is a column and the scene scrubs down the page. "Progress"

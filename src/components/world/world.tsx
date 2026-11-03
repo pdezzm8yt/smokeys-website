@@ -73,6 +73,8 @@ export function World({ children }: { children: ReactNode }) {
     if (!world) return;
     const input = new WorldScroll(world, () => document.documentElement.hasAttribute("data-scroll-lock"));
     input.start();
+    // The world is running (the boot script's failsafe stands down: it would fall back to the column).
+    document.documentElement.dataset.worldReady = "";
 
     /**
      * Where the visitor is, kept up to date as they MOVE (never on a resize: by
@@ -97,7 +99,15 @@ export function World({ children }: { children: ReactNode }) {
     // would line up whichever edge is nearest. Focus moves there too, as with a native jump.
     const sideways = () => document.documentElement.dataset.axis === "x";
     const target = (hash: string) => {
-      const el = hash.length > 1 ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+      if (hash.length < 2) return null;
+      // A stray "%" in a shared link (#50%off) can't be decoded: that's simply no target, never an error.
+      let id = hash.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        // (kept as it is)
+      }
+      const el = document.getElementById(id);
       return el && world.contains(el) ? el : null;
     };
     const arrive = (el: HTMLElement, instant: boolean) => {
@@ -116,8 +126,10 @@ export function World({ children }: { children: ReactNode }) {
       if (!el) return;
       e.preventDefault();
       if (url.hash !== window.location.hash) {
-        // Remember where the visitor was on the entry they're leaving (keeping Next's own state): Back returns there.
-        window.history.replaceState({ ...(window.history.state as object | null), worldX: world.scrollLeft }, "");
+        // Remember where the visitor was on the entry they're leaving, so Back returns there. Only on entries
+        // Next owns (with its __NA mark): Next reloads the page on Back to a non-empty state without it.
+        const state = window.history.state as { __NA?: boolean } | null;
+        if (state?.__NA) window.history.replaceState({ ...state, worldX: world.scrollLeft }, "");
         window.history.pushState(null, "", url.hash);
       }
       arrive(el, false);
@@ -219,6 +231,7 @@ export function World({ children }: { children: ReactNode }) {
       cancelAnimationFrame(frame);
       setScene(null);
       setAxis(null);
+      delete document.documentElement.dataset.worldReady;
     };
   }, []);
 
