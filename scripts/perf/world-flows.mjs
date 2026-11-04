@@ -60,7 +60,10 @@
  *      to /#intro-end), Contact's Book and Schedule (the date field focused), a package's "Request
  *      pricing" (package preset) and an occasion's "Plan this ride" (occasion preset); every field saves
  *      to localStorage as it's typed, merged with what was there (an unrelated stored key survives);
- *      the preview and the text/email links carry the values; Esc, the backdrop and the close button
+ *      the preview and the text/email links carry the values; on a computer a QR code carries the text message
+ *      (SMSTO:number:message) and follows the form, on a phone there's none (a computer window widened past
+ *      the phone width with the panel open gets it then; a very long request, emoji or Chinese included, still
+ *      gets a whole, scannable code with every detail but the end of its free text); Esc, the backdrop and the close button
  *      close it, focus back on the opener; while it's open the wheel and the keys don't move the world
  *   12 the loop: (a) the join shows nothing (held docked in the tunnel at the end of the lap, its film on its
  *      first frame, then a 0.5px nudge on into the next lap: the tunnel back at the start, scrollLeft ≈ 0, the same
@@ -1670,6 +1673,15 @@ if (want(11)) {
       await save("occasion", "eventType", occasion, () => dialog.getByLabel("Occasion", { exact: true }).selectOption(occasion));
       const pkg = await dialog.getByLabel("Package", { exact: true }).locator("option").nth(1).getAttribute("value");
       await save("package", "package", pkg, () => dialog.getByLabel("Package", { exact: true }).selectOption(pkg));
+      // (The QR code of the text, on a computer, before the notes go in: it must follow the form.)
+      const codeOf = () => page.evaluate(() => document.querySelector("dialog[aria-labelledby] svg[data-text-code]")?.getAttribute("data-text-code") ?? null);
+      // (Its encoder loads once its place comes into view: scrolled to, on a computer.)
+      const spot = dialog.locator("[data-text-code-spot]");
+      if (await spot.isVisible()) {
+        await spot.scrollIntoViewIfNeeded();
+        await dialog.locator("svg[data-text-code]").waitFor({ timeout: 5000 }).catch(() => {});
+      }
+      const codeBefore = await codeOf();
       await save("notes", "notes", "Bring the disco lights & glow sticks", () => dialog.getByLabel("Anything else", { exact: true }).fill("Bring the disco lights & glow sticks"));
       await save("day or night", "period", "night", () => dialog.locator('[role=radio][aria-label="Night ride"]').click());
       fields = { occasion, pkg };
@@ -1688,6 +1700,13 @@ if (want(11)) {
           contactMail: decodeURIComponent(q(c, 'a[href^="mailto:"]')),
         };
       });
+      const code = {
+        before: codeBefore,
+        after: await codeOf(),
+        computer: await page.evaluate(() => matchMedia("(pointer: fine) and (min-width: 48rem)").matches),
+        number: await page.evaluate(() => document.querySelector('dialog[aria-labelledby] a[href^="tel:"]')?.getAttribute("href")?.replace("tel:", "") ?? ""),
+        preview: texts.preview,
+      };
       const want = ["a night ride", "Dec 31, 2026", "7:30 PM", "42 Harness Lane", "Guests: 12", `Occasion: ${occasion}`, `Package: ${pkg}`, "Notes: Bring the disco lights & glow sticks"];
       const carries = Object.fromEntries(Object.entries(texts).map(([k, v]) => [k, want.filter((x) => !v.includes(x))]));
       // While it's open: the wheel (over the backdrop and over the panel) and the keys leave the world where it is.
@@ -1703,11 +1722,18 @@ if (want(11)) {
       for (const key of ["PageDown", "ArrowRight", "End", "Home"]) await page.keyboard.press(key);
       await page.waitForTimeout(300);
       const held = { moved: (await settle(page)) - was, pageScrollY: await page.evaluate(() => scrollY) };
-      return { steps, carries, subject: texts.mail.match(/subject=([^&]*)/)?.[1] ?? "", held };
+      return { steps, carries, subject: texts.mail.match(/subject=([^&]*)/)?.[1] ?? "", held, code };
     });
     check(`11 ${name}: the header's Book opens the booking panel`, a.opened.open && a.opened.title === "Book your ride" && a.opened.focusInside, a.opened);
     for (const s of a.extra.steps) check(`11 ${name}: typing the ${s.field} saves it, merged`, s.ok, { typed, stored: await stored() });
     for (const [k, missing] of Object.entries(a.extra.carries)) check(`11 ${name}: the ${k} carries every detail`, missing.length === 0, { missing });
+    {
+      const q = a.extra.code;
+      if (q.computer) {
+        check(`11 ${name}: on a computer, a QR code carries the text message (SMSTO:number:the previewed message)`, q.after === `SMSTO:${q.number}:${q.preview}` && q.number.length > 5, q);
+        check(`11 ${name}: the QR code follows the form (the notes added: a new code)`, !!q.before && q.before !== q.after && !q.before.includes("Notes:") && q.after.includes("Notes: Bring the disco lights"), q);
+      } else check(`11 ${name}: on a phone there's no QR code (the Text button sends it)`, q.before === null && q.after === null, q);
+    }
     check(`11 ${name}: the email's subject carries the ride and the date`, a.extra.subject.includes("a night ride") && a.extra.subject.includes("Dec 31, 2026"), a.extra.subject);
     check(`11 ${name}: while it's open the wheel and keys don't move the world`, near(a.extra.held.moved, 0, 0.5) && a.extra.held.pageScrollY === 0, a.extra.held);
     check(`11 ${name}: Esc closes it, focus back on the header's Book`, !a.closed.open && a.closed.focusOnOpener, a.closed);
@@ -1757,6 +1783,54 @@ if (want(11)) {
     check(`11 ${name}: closed, focus back on "Plan this ride"`, !f.closed.open && f.closed.focusOnOpener, f.closed);
     r.panelWidth = `${a.opened.width}px of a ${opts.viewport.width}px screen`;
     out[name] = r;
+    await ctx.close();
+  }
+  // g. A computer whose window starts too narrow for the QR code, then is widened with the panel open: the code comes.
+  {
+    const { ctx, page } = await open({ viewport: { width: 700, height: 800 } });
+    const dialog = page.locator("dialog[aria-labelledby]");
+    await skyStill(page);
+    await page.locator('[data-site-header] > div > a[data-action="book"]').click();
+    await page.waitForTimeout(500);
+    const codeIn = () => page.evaluate(() => !!document.querySelector("dialog[aria-labelledby] svg[data-text-code]"));
+    const narrow = { spotShown: await dialog.locator("[data-text-code-spot]").isVisible(), code: await codeIn() };
+    await page.setViewportSize(desktop.viewport);
+    await page.waitForTimeout(300);
+    await dialog.locator("[data-text-code-spot]").scrollIntoViewIfNeeded().catch(() => {});
+    await dialog.locator("svg[data-text-code]").waitFor({ timeout: 5000 }).catch(() => {});
+    const wide = await page.evaluate(() => document.querySelector("dialog[aria-labelledby] svg[data-text-code]")?.getAttribute("data-text-code") ?? null);
+    check("11 a window too narrow for the QR code shows none and loads no encoder", !narrow.spotShown && !narrow.code, narrow);
+    check("11 widened to a computer's width with the panel open, the QR code comes", !!wide?.startsWith("SMSTO:"), { wide });
+    out["widened window"] = { narrow, wide: wide?.slice(0, 60) ?? null };
+    // h. Very long requests: the code stays within 420 bytes (it stores UTF-8), never splits a character (emoji at
+    //    either parity, Chinese, a long pickup place), keeps every other detail, and the page never breaks.
+    const errorsBefore = uncaught.length;
+    const pickupField = dialog.getByLabel("Pickup place", { exact: true });
+    const notesField = dialog.getByLabel("Anything else", { exact: true });
+    await dialog.getByLabel("Guests", { exact: true }).fill("12");
+    const long = [
+      ["notes: emoji", "", "🎉".repeat(300)],
+      ["notes: emoji, one letter on", "", `x${"🎉".repeat(300)}`],
+      ["notes: letters then an emoji at the cut", "", `${"b".repeat(298)}🎉${"c".repeat(100)}`],
+      ["notes: Chinese", "", "日".repeat(600)],
+      ["notes: a family emoji (one character of 11 units)", "", "👨‍👩‍👧‍👦".repeat(60)],
+      ["pickup: a long pasted address, no notes", "Main St, ".repeat(60), ""],
+    ];
+    for (const [what, pickup, notes] of long) {
+      await pickupField.fill(pickup);
+      await notesField.fill(notes);
+      await page.waitForTimeout(150);
+      const q = await page.evaluate(() => {
+        const c = document.querySelector("dialog[aria-labelledby] svg[data-text-code]")?.getAttribute("data-text-code") ?? null;
+        const rows = c?.split("\n") ?? [];
+        return c && { bytes: new TextEncoder().encode(c).length, wellFormed: c.isWellFormed(), rows: rows.map((l) => [l.split(":")[0], l.slice(-6)]) };
+      });
+      const row = (name) => q?.rows.find(([l]) => l === name);
+      const kept = !!q && ["Date", "Pickup (time and place)", "Guests", "Occasion"].every(row) && (notes ? !!row("Notes") : !row("Notes"));
+      const cut = row(notes ? "Notes" : "Pickup (time and place)")?.[1].endsWith("…");
+      check(`11 a long request (${what}): a scannable code (≤ 420 bytes, whole characters, "…" at the cut), every other detail kept`, !!q && q.bytes <= 420 && q.wellFormed && cut && kept, q);
+    }
+    check("11 long requests never break the page", uncaught.length === errorsBefore, uncaught.slice(errorsBefore));
     await ctx.close();
   }
   results["11 booking panel"] = out;

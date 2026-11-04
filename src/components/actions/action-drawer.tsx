@@ -12,6 +12,7 @@ import { site } from "@/content/site";
 import { bookingLinks, bookingMessage } from "@/lib/booking-message";
 import { updateBooking, type BookingPreferences } from "@/lib/booking-store";
 import { cn } from "@/lib/cn";
+import { TextFromPhone } from "./text-from-phone";
 
 /** What a [data-action] element asks for. Calls are plain tel: links; everything else opens this panel. */
 const MODES = {
@@ -34,7 +35,8 @@ const field =
  * modal dialog (focus kept inside, Esc closes, focus returns to the button
  * that opened it). The visitor fills in what they know, saved as they type
  * (src/lib/booking-store.ts), and sends it to Roadrunning as a text or an email
- * from their own phone or mail app, or calls. Nothing is booked or sent by
+ * from their own phone or mail app, or calls. On a computer, a QR code of the
+ * text hands it to their phone (./text-from-phone.tsx). Nothing is booked or sent by
  * the site: Roadrunning confirms.
  *
  * Any element with data-action="book|quote|schedule|message|email" opens it
@@ -188,6 +190,15 @@ export function ActionDrawer() {
               <summary className="cursor-pointer font-semibold">Preview your message</summary>
               <p className="mt-3 whitespace-pre-line text-muted-foreground">{body}</p>
             </details>
+            {/* On a computer, where texting from the browser rarely works: the written request handed to their phone. */}
+            <TextFromPhone prefs={prefs} label={`QR code: scan it with your phone to text this request to ${site.name}`}>
+              <div>
+                <p className="font-semibold">On a computer? Text it from your phone.</p>
+                <p className="mt-1 text-muted-foreground">
+                  Point your phone&apos;s camera at the code: your messages open with this request written in, ready to send. It changes as you fill in the form.
+                </p>
+              </div>
+            </TextFromPhone>
           </div>
         </form>
 
