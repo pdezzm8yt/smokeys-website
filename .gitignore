@@ -17,3 +17,5 @@ next-env.d.ts
 # Intro video masters stay local (big, and the repo is public); only the web versions in public/video/intro are committed.
 assets/intro-source/video/*
 !assets/intro-source/video/README.md
+# The owner's own footage, as exported from Photos (large originals; web versions are built from them)
+assets/footage-source/*
