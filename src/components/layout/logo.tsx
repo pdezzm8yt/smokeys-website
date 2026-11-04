@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 import { site } from "@/content/site";
 
 /**
- * Provisional wordmark until the real Smokey's logo (SVG) is supplied via
+ * Provisional wordmark until the real Roadrunning logo (SVG) is supplied via
  * `assets.brand.logo`. The glyph is a speeding roadrunner head + speed lines.
  */
 export function Logo({ className }: { className?: string }) {

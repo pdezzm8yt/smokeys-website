@@ -14,7 +14,7 @@ import { currentAxis, worldElement, worldTravel } from "./world-axis";
  * the bus has driven out of the tunnel); with reduced motion it just fades.
  *
  * Decoration only (aria-hidden): a generic black party bus, not a picture of
- * Smokey's own bus. Only in the sideways world.
+ * Roadrunning's own bus. Only in the sideways world.
  */
 export function GuideBus() {
   const ref = useRef<HTMLDivElement>(null);

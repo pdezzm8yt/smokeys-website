@@ -1,5 +1,6 @@
 import { ButtonLink } from "@/components/ui/button";
 import { SiteFooter } from "@/components/layout/site-footer";
+import { site } from "@/content/site";
 
 export default function NotFound() {
   return (
@@ -10,7 +11,7 @@ export default function NotFound() {
           <h1 className="font-display text-3xl font-bold">Wrong turn.</h1>
           <p className="max-w-sm text-muted-foreground">This stop isn&apos;t on the route. Let&apos;s get you back on the bus.</p>
           <ButtonLink href="/" size="lg">
-            Back to Smokey&apos;s
+            Back to {site.name}
           </ButtonLink>
         </div>
       </main>

@@ -48,7 +48,7 @@
  *      header visible, the tunnel parked at its end; the address then forgets the hash (replaceState:
  *      no new history entry)
  *   7  reload mid-scene: back at the same place (not held), the film on the same frame
- *   8  no JavaScript: a column, the tunnel is its finished hero (one screen: the bus at rest, SMOKEY'S,
+ *   8  no JavaScript: a column, the tunnel is its finished hero (one screen: the bus at rest, ROADRUNNING,
  *      the CTAs), every scene below it in order, "Book your ride" a plain link to the Contact scene
  *   9  keyboard: no Tab stop in the hidden CTAs; the world's keys along the scene, the film following:
  *      → / ↓ a fifth of a screen on, Space / Page Down to the next stop (a screen on in the long tunnel),
@@ -570,7 +570,7 @@ if (want("7")) { const { ctx, page, errors } = await open(); await ready(page);
   check("7 a reload mid-scene: the film on the same frame", filmNear(after.filmT, before.filmT, S0), { before: before.filmT, after: after.filmT });
   results["7 reload mid-scene"] = { before: { progress: before.progress, filmT: before.filmT }, after, errors }; await ctx.close(); }
 
-// 8. No JavaScript: the world is a column; the tunnel is its finished hero (the film's resting frame, SMOKEY'S, the
+// 8. No JavaScript: the world is a column; the tunnel is its finished hero (the film's resting frame, ROADRUNNING, the
 //    CTAs) on one screen, every scene below it; the booking CTA is a plain link to the Contact scene.
 if (want("8")) { const { ctx, page, errors } = await open({ javaScriptEnabled: false }); await page.waitForTimeout(500);
   const st = await page.evaluate(() => {
@@ -741,7 +741,7 @@ if (want("13")) { const { ctx, page, errors } = await open({}, { before: (c, p) 
   results["13 VP9 fallback"] = { files, mid: { film: mid.film, filmT: mid.filmT }, end: { filmT: end.filmT, h1: end.h1 }, errors }; await ctx.close(); }
 
 // 14. Home (the header's logo: /#intro-end, the scene's end) while the film loads, then the film can't load: the
-//     scene's end shows the finished hero meanwhile (the bus, SMOKEY'S, the CTAs: never the roadrunner's first frame
+//     scene's end shows the finished hero meanwhile (the bus, ROADRUNNING, the CTAs: never the roadrunner's first frame
 //     without a headline), and the scene getting shorter for the stills must not move the visitor off its end.
 if (want("14")) { let fail; const failNow = new Promise((r) => (fail = r));
   const { ctx, page, errors } = await open({}, { waitUntil: "domcontentloaded", before: (c) => c.route(FILM, async (r) => { await failNow; await r.abort(); }) });

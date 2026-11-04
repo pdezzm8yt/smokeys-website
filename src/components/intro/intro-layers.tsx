@@ -124,8 +124,10 @@ export function IntroCopy() {
         </p>
         {/* tabIndex -1: Skip moves focus here, so Tab continues to the CTAs. */}
         <h1 id="intro-title" tabIndex={-1} data-bus-copy className="mt-3 font-display leading-[0.95] font-black tracking-tight opacity-0 outline-none short:mt-1">
-          <span className="block text-(length:--h1-size) text-glow-amber short:text-[clamp(1.75rem,9svh,2.5rem)]">SMOKEY&apos;S</span>{" "}
-          <span className="mt-2 block text-sm font-semibold tracking-[0.55em] text-muted-foreground sm:text-base short:text-xs">PARTY BUS</span>
+          <span className="block text-(length:--h1-size) text-glow-amber short:text-[clamp(1.75rem,9svh,2.5rem)]">ROADRUNNING</span>{" "}
+          <span className="mt-2 block text-sm font-semibold tracking-[0.3em] text-balance text-muted-foreground sm:text-base sm:tracking-[0.4em] short:text-xs short:tracking-[0.25em]">
+            PARTY BUS RENTAL SERVICE
+          </span>
         </h1>
         <p data-bus-copy className="mt-4 hidden max-w-md text-base text-pretty text-muted-foreground opacity-0 [@media(min-height:56rem)]:block">
           Birthdays, prom, weddings and nights out. Tell us the plan and we&apos;ll bring the party to your door.

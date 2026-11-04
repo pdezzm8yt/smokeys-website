@@ -26,7 +26,7 @@ export const metadata: Metadata = {
  * through every scene of the site (src/components/scenes), then round again:
  * sideways, the world is a loop that only goes forward, and after the footer
  * the journey comes back round to the roadrunner's road. Everything to read
- * about Smokey's is here; only actions (book, call, message) open something,
+ * about Roadrunning is here; only actions (book, call, message) open something,
  * over the world.
  */
 export default function HomePage() {

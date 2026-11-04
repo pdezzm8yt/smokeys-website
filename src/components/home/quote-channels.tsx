@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * The Contact scene's direct routes (QuoteCta, beside its Book and Schedule
- * buttons): call, text and email go straight to Smokey's, the text and email
+ * buttons): call, text and email go straight to Roadrunning, the text and email
  * pre-filled with whatever the visitor has filled in so far (the booking
  * panel, the day/night choice), so nothing has to be typed twice.
  */

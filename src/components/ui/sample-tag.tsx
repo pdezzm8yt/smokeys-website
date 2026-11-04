@@ -2,7 +2,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * Marks placeholder content (sample photos, unconfirmed specs) so it is never
- * mistaken for the real Smokey's bus or policies. Remove by setting
+ * mistaken for the real Roadrunning bus or policies. Remove by setting
  * `sample: false` / `placeholder: false` in src/content once confirmed.
  */
 export function SampleTag({ label = "Sample", className }: { label?: string; className?: string }) {

@@ -56,7 +56,7 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-full max-w-7xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-        {/* The homepage's hero is the end of the intro film (the bus, SMOKEY'S, the CTAs), not its first frame.
+        {/* The homepage's hero is the end of the intro film (the bus, ROADRUNNING, the CTAs), not its first frame.
             A section link like the nav: a same-page scroll on the homepage, a full load from any other page
             (so the intro's pre-paint script runs). */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

@@ -17,7 +17,7 @@
 }
 
 /*
- * Smokey's design tokens: black, gold and white over a living sky.
+ * Roadrunning's design tokens: black, gold and white over a living sky.
  * Two themes, switched by the sky (html[data-sky], set before first paint and
  * by src/components/sky): NIGHT (navy glass, near-white text; also the
  * no-JS default) and DAY (white glass, deep navy text). Gold is the brand
@@ -490,7 +490,8 @@ html[data-intro-still] .intro-scroll {
 }
 .intro-stage {
   container-type: size;
-  --h1-size: clamp(2.25rem, min(1rem + 5vw, 9svh), 5.5rem);
+  /* (10vw − 0.25rem: the brand's 11-letter word, ROADRUNNING, stays inside the narrowest phones' padding.) */
+  --h1-size: clamp(1.5rem, min(1rem + 5vw, 9svh, 10vw - 0.25rem), 5.5rem);
 }
 
 /*

@@ -2,10 +2,10 @@ import { site } from "@/content/site";
 import type { BookingPreferences } from "./booking-store";
 
 /**
- * The booking request as a message to Smokey's: what the visitor filled in
+ * The booking request as a message to Roadrunning: what the visitor filled in
  * (the booking panel, the day/night choice), ready to send by text or email
  * from their own phone or mail app. Nothing is sent from the site, and a
- * request isn't a booking: Smokey's replies to confirm.
+ * request isn't a booking: Roadrunning replies to confirm.
  */
 
 const ride = (p: BookingPreferences) => (p.period === "day" ? "a day ride" : p.period === "night" ? "a night ride" : "a ride");
