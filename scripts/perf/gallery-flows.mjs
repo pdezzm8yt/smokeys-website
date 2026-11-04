@@ -123,7 +123,7 @@ async function open(ctx) {
   await page.goto(`${URL}nope`, { waitUntil: "load" });
   await page.waitForTimeout(1000); // hydrated: the link below navigates client-side
   await page.evaluate(() => (window.__sameDocument = true));
-  await page.locator('main a[href="/"]').click(); // "Back to Smokey's" (next/link)
+  await page.locator('main a[href="/"]').click(); // "Back to Roadrunning" (next/link)
   await page.waitForSelector("#gallery li button");
   const clientSide = await page.evaluate(() => window.__sameDocument === true);
   await page.waitForTimeout(500);

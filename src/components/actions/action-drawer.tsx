@@ -33,9 +33,9 @@ const field =
  * panel over the world instead of taking the visitor somewhere else: a native
  * modal dialog (focus kept inside, Esc closes, focus returns to the button
  * that opened it). The visitor fills in what they know, saved as they type
- * (src/lib/booking-store.ts), and sends it to Smokey's as a text or an email
+ * (src/lib/booking-store.ts), and sends it to Roadrunning as a text or an email
  * from their own phone or mail app, or calls. Nothing is booked or sent by
- * the site: Smokey's confirms.
+ * the site: Roadrunning confirms.
  *
  * Any element with data-action="book|quote|schedule|message|email" opens it
  * (a link to the Contact scene, so it still works without JS); it can also

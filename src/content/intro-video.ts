@@ -75,7 +75,7 @@ export type FilmCutConfig = {
 export const introFilm = {
   label: "Roadrunner to party bus",
   /**
-   * The footage isn't final: the bus in it is a generic coach, not Smokey's
+   * The footage isn't final: the bus in it is a generic coach, not Roadrunning's
    * bus. Keeps the "Placeholder footage" tag on screen (for both cuts); set to
    * false once EVERY built cut shows the real bus.
    */

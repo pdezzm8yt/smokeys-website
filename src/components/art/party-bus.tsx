@@ -150,7 +150,7 @@ export function PartyBus({ idPrefix, lightsOn = true, beam = false, className }:
           opacity="0.92"
           style={{ fontFamily: "var(--font-display-face), sans-serif" }}
         >
-          SMOKEY&apos;S
+          ROADRUNNING
         </text>
 
         {/* Mirror, head- and taillights */}

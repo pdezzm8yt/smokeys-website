@@ -1,4 +1,4 @@
-# Smokey's: architecture brief
+# Roadrunning Party Bus Rental Service: architecture brief
 
 **Archetype:** marketing site + lead capture. The homepage is one continuous sideways world (the signature tunnel scene is its first scene, not an intro); quote requests stored in Supabase and emailed via Resend (phase 2; today the booking panel composes a text or email for the visitor to send).
 
@@ -18,9 +18,9 @@ The homepage is ONE continuous world travelled sideways (`src/components/world`)
 One scroll-driven film: a pinned stage (CSS sticky inside a long section: ~6 screens sideways) whose single GSAP master timeline is scrubbed by the world's scroll (its own driver, ScrollTrigger's scrub feel), forward each time round the loop. ONE continuous shot provides all the movement; it never plays on its own, it's seeked frame by frame to the playhead. GSAP adds the camera, the tunnel's black, the glow, the caption and the branding.
 1. The roadrunner runs at the tunnel (the camera pushes in slowly; "Fast like a roadrunner…").
 2. He runs in and the light goes: a black closes over everything, complete at the film's darkest frame. While it's black the film jumps past its own swap (the footage's lit dust and the bus waiting in the tunnel are never shown): that's where he becomes the bus.
-3. Two headlights glow through the dark, then the bus's shape; it drives out onto the road, the camera settles; SMOKEY'S, then the CTAs, in the scene; the camera drifts on and the stage moves off as the world carries on.
+3. Two headlights glow through the dark, then the bus's shape; it drives out onto the road, the camera settles; ROADRUNNING, then the CTAs, in the scene; the camera drifts on and the stage moves off as the world carries on.
 Each stretch between the film's beats (tunnel, dark, lights, rest…: seconds, set per cut in `src/content/intro-video.ts`) gets its own share of the scroll (`intro-config.ts`).
-Footage: two cuts of the same shot, portrait (phones) and wide 16:9 (desktops), each from its own master → `npm run video:build` → `public/video/intro/` (H.264 ≤1920 plus a lighter ≤1440 phone version, VP9; all encoded for instant seeking; three stills; five tiny pre-blurred glows). Each screen gets the closer cut; until the wide master exists, desktops show the portrait cut as a feathered band over the glow. The film downloads fully before the scroll unlocks (~3 MB on phones; its files are named after their content and served `immutable`, so a return visit takes them from the browser's cache). The current film is the owner's AI render with a generic coach, not Smokey's bus: it's labelled "Placeholder footage" until a render with the real bus replaces it (see `assets/intro-source/video/README.md`).
+Footage: two cuts of the same shot, portrait (phones) and wide 16:9 (desktops), each from its own master → `npm run video:build` → `public/video/intro/` (H.264 ≤1920 plus a lighter ≤1440 phone version, VP9; all encoded for instant seeking; three stills; five tiny pre-blurred glows). Each screen gets the closer cut; until the wide master exists, desktops show the portrait cut as a feathered band over the glow. The film downloads fully before the scroll unlocks (~3 MB on phones; its files are named after their content and served `immutable`, so a return visit takes them from the browser's cache). The current film is the owner's AI render with a generic coach, not Roadrunning's own bus: it's labelled "Placeholder footage" until a render with the real bus replaces it (see `assets/intro-source/video/README.md`).
 Reduced motion / Save-Data / 2G / a film that can't load, or whose download, judged ~2 s after its first byte, is on course to take over ~10 s (`INTRO.slowNet`) = crossfaded stills on a shorter scroll. No JS = the finished hero on the film's resting frame.
 
 ## Living sky and themes
@@ -40,7 +40,7 @@ Initial JS measured 2026-10-28: ~258 KB gzip (React + Next runtime ≈ 150 KB, M
 Intro film re-rendered with the real bus, portrait 9:16 AND wide 16:9 (same story beats) · final mascot art (SVG/Lottie) · bus photos lights-off AND lights-on from the same tripod position · interior photos/video · logo SVG · brand colors/fonts · real specs, packages, contact details, service area, FAQ answers.
 
 ## Deployment (pre-launch lockdown)
-Vercel project `smokey6/smokeys-website`, connected to GitHub `pdezzm8yt/smokeys-website`; production branch `main`.
+Vercel project `smokey6/road-running-party-bus-rental` (renamed from `smokeys-website`), connected to GitHub `pdezzm8yt/smokeys-website`; production branch `main`. The short draft link `road-running-party-bus-rental.vercel.app` is an alias pointed at the newest preview deployment by hand (`vercel alias set <preview-url> road-running-party-bus-rental.vercel.app`), protected like every preview.
 On the Hobby plan, Deployment Protection covers every URL except the production domain, so until launch:
 - `vercel.json` sets `git.deploymentEnabled.main = false`: pushes to `main` create no deployment. Every other branch gets a protected preview (sign-in required).
 - The production alias `smokeys-website-omega.vercel.app` was removed (the project domain entry is kept, so the name stays reserved).

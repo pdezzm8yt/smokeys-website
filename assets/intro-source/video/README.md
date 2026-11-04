@@ -21,7 +21,7 @@ middle, over a soft glow of the same scene).
 H.264, HEVC…). iPhone HDR footage is converted to standard (Rec.709) colour
 automatically; variable frame rates are made constant. Audio is dropped.
 
-**Best results:** the same story beats in both cuts; the bus is Smokey's own
+**Best results:** the same story beats in both cuts; the bus is Roadrunning's own
 (make it from photos of the real bus); about 10–14 s up to the moment the bus
 is fully in view (the build trims everything after that); 24–30 fps; no text
 or watermarks. The film downloads completely before the intro can be
@@ -50,5 +50,5 @@ scrolled, and the build warns above ~7 MB (desktop) / ~3.5 MB (phones).
    Each file is named after its content (`film-wide.<hash>.mp4`), so browsers
    keep it for good and new footage always gets new names; the cut's older
    files are removed once the manifest has moved on.
-5. Once EVERY built cut shows Smokey's real bus, set `introFilm.placeholder`
+5. Once EVERY built cut shows Roadrunning's real bus, set `introFilm.placeholder`
    to `false` (the "Placeholder footage" tag goes away: it covers both cuts).

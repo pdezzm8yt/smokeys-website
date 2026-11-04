@@ -13,16 +13,16 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
-  title: { default: `${site.name} Party Bus | Black Party Bus Rentals`, template: `%s | ${site.name} Party Bus` },
+  title: { default: site.legalName, template: `%s | ${site.legalName}` },
   description: site.description,
   openGraph: {
     type: "website",
-    siteName: `${site.name} Party Bus`,
-    title: `${site.name} Party Bus`,
+    siteName: site.legalName,
+    title: site.legalName,
     description: site.description,
   },
   // "summary" until there's a share image (opengraph-image); each page sets its own canonical and OG URL.
-  twitter: { card: "summary", title: `${site.name} Party Bus`, description: site.description },
+  twitter: { card: "summary", title: site.legalName, description: site.description },
   formatDetection: { telephone: false },
   robots: siteIndexable ? undefined : { index: false, follow: false },
 };
@@ -59,7 +59,7 @@ const introBootScript = `(function(){try{var d=document.documentElement;if(locat
  */
 const skyBootScript = `(function(){try{var d=document.documentElement,p;try{p=JSON.parse(localStorage.getItem("smokeys:booking")||"{}").period}catch(e){}var h=new Date().getHours();d.dataset.sky=p==="day"||p==="night"?p:(h>=6&&h<19?"day":"night")}catch(e){}})()`;
 
-/** No JavaScript: the world is a column, and the tunnel scene is just its finished hero (the bus, SMOKEY'S and the CTAs). */
+/** No JavaScript: the world is a column, and the tunnel scene is just its finished hero (the bus, ROADRUNNING and the CTAs). */
 const introNoScript = `.intro-scroll{height:100lvh}:is([data-still="rest"],[data-glow="rest"],[data-copy-scrim]){opacity:1}[data-bus-copy]{opacity:1;visibility:visible}:is([data-film],[data-caption],[data-intro-hint],[data-fx]){display:none}${noScriptBandCss()}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {

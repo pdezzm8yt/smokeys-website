@@ -786,7 +786,7 @@ export class WorldScroll {
         break;
       case "Home":
       case "End": {
-        // Home: where the header's home link goes (the bus out of the tunnel, SMOKEY'S); End: the lap's last stop
+        // Home: where the header's home link goes (the bus out of the tunnel, ROADRUNNING); End: the lap's last stop
         // (the footer). Ahead, as a nav link goes (back to it only from within its own scene).
         const el = this.world.querySelector<HTMLElement>(e.key === "Home" ? "#intro-end" : "#footer");
         if (el)

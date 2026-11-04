@@ -23,22 +23,22 @@ export type AssetSlot = {
 
 export const assets = {
   bus: {
-    // TODO(owner): confirm these photos show Smokey's own bus and that you own (or licensed) them; then set
+    // TODO(owner): confirm these photos show Roadrunning's own bus and that you own (or licensed) them; then set
     // placeholder to false. Supply a 2400px+ exterior: this one is 560px wide.
     exterior: {
       src: busExterior,
       alt: "Black party bus, exterior",
       placeholder: true,
-      launchNote: "Confirm it's Smokey's own bus (the plate and fleet number suggest a dealer or operator photo) and that you hold the rights; 2400px+ wide.",
+      launchNote: "Confirm it's Roadrunning's own bus (the plate and fleet number suggest a dealer or operator photo) and that you hold the rights; 2400px+ wide.",
     },
     interior: {
       src: busInterior,
       alt: "Party bus interior with LED ceiling strips, quilted lounge seating and floor lighting",
       placeholder: true,
-      launchNote: "Confirm it's Smokey's own bus and that you hold the rights.",
+      launchNote: "Confirm it's Roadrunning's own bus and that you hold the rights.",
     },
   },
   brand: {
-    logo: { src: null, alt: "Smokey's", placeholder: true },
+    logo: { src: null, alt: "Roadrunning Party Bus Rental Service", placeholder: true },
   },
 } as const;

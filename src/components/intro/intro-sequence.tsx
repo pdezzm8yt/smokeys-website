@@ -266,7 +266,7 @@ export function IntroSequence({ film, copy, lead }: IntroSequenceProps) {
       <div aria-hidden="true" className="intro-lead">
         {lead}
       </div>
-      {/* Where the film comes to rest (bus, SMOKEY'S, CTAs): the header's home link and deep links land here. */}
+      {/* Where the film comes to rest (bus, ROADRUNNING, CTAs): the header's home link and deep links land here. */}
       <span id="intro-end" aria-hidden="true" className="intro-end pointer-events-none absolute" />
       {/*
         The pinned stage: its layers stay mounted while the scroll plays the timeline. Down the page it's
@@ -312,7 +312,7 @@ export function IntroSequence({ film, copy, lead }: IntroSequenceProps) {
 
         {hasPlaceholderFootage ? (
           // Readable over the brightest frame, clear of the centred hint on narrow phones, never in the way
-          // of a tap, and on screen in every layout while the footage isn't Smokey's own bus.
+          // of a tap, and on screen in every layout while the footage isn't Roadrunning's own bus.
           <SampleTag
             label="Placeholder footage"
             className="intro-bottom-ui pointer-events-none absolute right-4 z-30 bg-black/75 text-white/90 max-sm:mb-14"
